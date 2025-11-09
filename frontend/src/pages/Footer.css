@@ -1,0 +1,214 @@
+:root {
+  --bg-dark: #000;
+  --text-light: #ddd;
+  --text-lighter: #fff;
+  --accent: #00229d;
+  --border: #444;
+}
+html.light {
+  --bg-dark: #fff;
+  --text-light: #444;
+  --text-lighter: #000;
+  --accent: #4f70e5;
+  --border: #ccc;
+}
+
+.site-footer {
+  background: #000; /* Full black */
+  color: var(--text-light);
+  position: relative;
+  padding: 20px;
+  font-family: sans-serif;
+  overflow: visible;
+  z-index: 1;
+}
+
+/* Upward-only glow shadow behind the footer */
+.site-footer::before {
+  content: "";
+  position: absolute;
+  top: -100px; /* move glow above footer */
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  height: 120px;
+  background: radial-gradient(
+    ellipse at bottom,
+    rgba(255, 47, 217, 0.573),
+    rgba(88, 213, 255, 0.3),
+    transparent 80%
+  );
+  filter: blur(40px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Ensure content is above glow */
+.site-footer > * {
+  position: relative;
+  z-index: 2;
+}
+
+
+/* —— Main two-column layout —— */
+.footer-main {
+  display: flex;
+  flex-wrap: wrap;
+  max-width: 1200px;
+  margin: 0 auto;
+  gap: 40px;
+}
+.footer-left {
+  flex: 1 1 300px;
+  max-width: 500px;
+}
+.footer-right {
+  flex: 2 1 500px;
+}
+
+/* —— Signup Banner —— */
+.signup-banner h2 {
+  font-size: 32px;
+  color: var(--text-lighter);
+  margin-bottom: 8px;
+  font-weight: bold;
+}
+.signup-banner p {
+  color: var(--text-light);
+  margin-bottom: 20px;
+}
+.signup-form {
+  display: flex;
+  max-width: 600px;
+  margin-bottom: 24px;
+}
+.signup-form input {
+  flex: 1;
+  padding: 14px;
+  border: 1px solid #222;
+  background: #111;
+  color: var(--text-light);
+  border-radius: 4px 0 0 4px;
+  outline: none;
+}
+.signup-form button {
+  padding: 0 28px;
+  border: 1px solid var(--accent);
+  background: transparent;
+  color: var(--text-lighter);
+  font-weight: bold;
+  text-transform: uppercase;
+  border-radius: 0 4px 4px 0;
+  cursor: pointer;
+  transition: background 0.3s;
+}
+.signup-form button:hover {
+  background: var(--accent);
+}
+
+/* —— Social Icons —— */
+.social-row {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 40px;
+}
+.social-row a {
+  font-size: 20px;
+  color: var(--text-light);
+  transition: transform 0.2s, color 0.2s;
+}
+.social-row a:hover {
+  color: var(--accent);
+}
+
+/* —— Acknowledgment —— */
+.acknowledgment {
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--text-light);
+}
+.acknowledgment a {
+  color: var(--text-lighter);
+  text-decoration: underline;
+}
+
+/* —— Links Grid (6 columns) —— */
+.links-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr) /* two rows of three */;
+  gap: 40px 60px;
+}
+.links-grid h4 {
+  font-size: 1rem;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+  font-weight: bold;
+  color: var(--text-lighter);
+}
+.links-grid ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.links-grid li {
+  margin-top: 0 !important;
+  margin-bottom: 6px;
+  font-size: 1rem;
+  color: var(--text-light);
+  display: flex;
+  align-items: center;
+}
+.badge {
+  background: var(--accent);
+  color: #fff;
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-left: 6px;
+}
+.badge-outlined {
+  border: 1px solid var(--text-lighter);
+  color: var(--text-lighter);
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-left: 6px;
+}
+
+/* —— Bottom Bar —— */
+.footer-bottom {
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 0;
+  max-width: 1200px;
+  margin: 40px auto 0;
+  font-size: 0.9rem;
+  font-weight: bold;
+}
+.footer-bottom nav a {
+  margin-left: 24px;
+  color: var(--text-light);
+  text-decoration: none;
+}
+.footer-bottom nav a:hover {
+  text-decoration: underline;
+}
+
+/* —— Light/Dark Toggle —— */
+.theme-toggle {
+  position: absolute;
+  bottom: 20px;
+  right: 20px;
+  background: var(--bg-dark);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  width: 48px;
+  height: 28px;
+  font-size: 16px;
+  cursor: pointer;
+  color: var(--text-lighter);
+}

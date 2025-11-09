@@ -1,0 +1,123 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: 240 5% 6%;
+  --foreground: 60 5% 90%;
+
+  --card: 240 4% 10%;
+  --card-foreground: 60 5% 90%;
+
+  --popover: 240 5% 15%;
+  --popover-foreground: 60 5% 85%;
+
+  --primary: 240 0% 90%;
+  --primary-foreground: 60 0% 0%;
+
+  --secondary: 240 4% 15%;
+  --secondary-foreground: 60 5% 85%;
+
+  --muted: 240 1% 21%;
+  --muted-foreground: 60 5% 85%;
+
+  --accent: 240 0% 13%;
+  --accent-foreground: 60 0% 100%;
+
+  --destructive: 0 60% 50%;
+  --destructive-foreground: 0 0% 98%;
+
+  --border: 240 6% 20%;
+  --input: 240 6% 20%;
+  --ring: 240 5% 90%;
+
+  --radius: 0.5rem;
+}
+
+.dark {
+  --background: 240 5% 6%;
+  --foreground: 60 5% 90%;
+
+  --card: 240 4% 10%;
+  --card-foreground: 60 5% 90%;
+
+  --popover: 240 5% 15%;
+  --popover-foreground: 60 5% 85%;
+
+  --primary: 240 0% 90%;
+  --primary-foreground: 60 0% 0%;
+
+  --secondary: 240 4% 15%;
+  --secondary-foreground: 60 5% 85%;
+
+  --muted: 240 1% 21%;
+  --muted-foreground: 60 5% 85%;
+
+  --accent: 240 0% 13%;
+  --accent-foreground: 60 0% 100%;
+
+  --destructive: 0 60% 50%;
+  --destructive-foreground: 0 0% 98%;
+
+  --border: 240 6% 20%;
+  --input: 240 6% 20%;
+  --ring: 240 5% 90%;
+}
+
+* {
+  @apply border-border;
+}
+
+body {
+  @apply bg-background text-foreground;
+  font-feature-settings: "rlig" 1, "calt" 1;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #1a1a1a;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #6d5f5f;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #444;
+}
+
+/* Table styles */
+.table-container {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th,
+td {
+  padding: 8px 12px;
+  text-align: left;
+  border: 1px solid #2a2a2a;
+}
+
+th {
+  background-color: #1e1e1e;
+  font-weight: 500;
+}
+
+tr:nth-child(even) {
+  background-color: #1a1a1a;
+}
+
+tr:nth-child(odd) {
+  background-color: #1e1e1e;
+}

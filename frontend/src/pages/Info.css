@@ -1,0 +1,52 @@
+/* Define theme variables */
+:root {
+  --primary-color: #ffffff;
+  --secondary-color: #212529;
+  --accent-color: #2a2e32;
+  --text-color: #000000;
+}
+.bg{
+  background-color: #000000;
+  background-image: none !important;
+}
+.preprocessing-info {
+    margin: 0 auto;
+    padding: 20px;
+    max-width: 900px;
+    color: #c0c0c0;
+    font-size: 1.2rem;
+  }
+  
+  .hero1 {
+    position: relative;
+    text-align: center;
+    color: white;
+  }
+  
+  .hero-image1 {
+    width: 100%;
+    height: auto;
+    margin-bottom: 10px;
+    }
+  
+  .title h2 {
+    font-size: 2rem;
+    color: var(--primary-color);
+    font-weight: bold;
+    margin-top: 1.4rem;
+  }
+  
+  .section-image {
+    width: 100%;
+    height: auto;
+    margin: 20px 0;
+  }
+  
+  ul, ol {
+    margin: 20px 0;
+    padding: 0 20px;
+  }
+  
+  ul li, ol li {
+    margin: 10px 0;
+  }

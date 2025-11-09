@@ -1,0 +1,22 @@
+*{
+  font-family: 'Calibri', 'Segoe UI', 'Helvetica Neue', sans-serif !important;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  background-color: black;
+}
+
+#root {
+  color: #548bf7;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.main-content {
+  flex: 1;
+}
