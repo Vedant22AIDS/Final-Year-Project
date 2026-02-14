@@ -190,3 +190,32 @@ class DatasetController:
         except Exception as e:
             return standardize_response(False, error=str(e), status_code=500)
 
+    #Himanshi's contribution for class imbalance analysis and balancing
+    @staticmethod
+    async def analyze_class_imbalance(dataset_id: str, target: str):
+        try:
+            data = dataset_service.analyze_class_imbalance(dataset_id, target)
+            return standardize_response(True, data, "Class imbalance analysis completed")
+        except ValueError as e:
+            return standardize_response(False, error=str(e), status_code=400)
+
+
+    @staticmethod
+    async def apply_class_balancing(dataset_id: str, target: str, method: str):
+        valid_methods = [
+            "random_over",
+            "random_under",
+            "smote",
+            "smote_tomek",
+            "class_weight"
+        ]
+
+        if method not in valid_methods:
+            return standardize_response(False, error="Invalid balancing method", status_code=400)
+
+        try:
+            data = dataset_service.apply_class_balancing(dataset_id, target, method)
+            return standardize_response(True, data, "Class balancing applied successfully")
+        except ValueError as e:
+            return standardize_response(False, error=str(e), status_code=400)
+    #ends

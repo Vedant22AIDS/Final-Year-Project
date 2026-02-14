@@ -320,6 +320,24 @@ export function useApi() {
       }),
     [apiCall]
   );
+  
+  const applyClassBalancing = async (
+  datasetId: string,
+  target: string,
+  method: "random_over" | "random_under" | "smote" | "smote_tomek" | "class_weight"
+) => {
+  return apiCall(`/dataset/${datasetId}/balance`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      target,
+      method,
+    }),
+  })
+}
+
 
   const removeDuplicates = useCallback(
     (datasetId: string) => apiCall(`/dataset/${datasetId}/duplicates`, { method: "DELETE" }),
@@ -399,6 +417,7 @@ export function useApi() {
     encodeCategorical,
     encodeCategoricalAdvanced,
     removeOutliers,
+    applyClassBalancing,
     removeDuplicates,
     getCorrelationAnalysis,
     exportDataset,

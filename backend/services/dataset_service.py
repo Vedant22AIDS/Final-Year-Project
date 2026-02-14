@@ -287,6 +287,17 @@ class DatasetService:
     def get_dataframe(self, dataset_id: str) -> pd.DataFrame:
         return self.get_preprocessor(dataset_id).df
 
+    #Himanshi's contribution for class imbalance analysis and balancing
+    def analyze_class_imbalance(self, dataset_id: str, target: str):
+        preprocessor = self.get_preprocessor(dataset_id)
+        result = preprocessor.analyze_class_imbalance(target)
+        return {"results": result, "summary": preprocessor.get_comprehensive_summary()}
+
+    def apply_class_balancing(self, dataset_id: str, target: str, method: str):
+        preprocessor = self.get_preprocessor(dataset_id)
+        result = preprocessor.apply_class_balancing(target, method)
+        return {"results": result, "summary": preprocessor.get_comprehensive_summary()}
+    #ends
 
 dataset_service = DatasetService()
 

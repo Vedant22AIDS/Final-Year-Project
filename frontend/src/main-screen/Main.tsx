@@ -54,6 +54,7 @@ export function DataPreprocessingApp() {
     mean: "0",
     categories: "0",
   })
+  const [classImbalance, setClassImbalance] = useState<any>(null);
   const [analysisMode, setAnalysisMode] = useState<
     | "overview"
     | "visualization"
@@ -63,6 +64,7 @@ export function DataPreprocessingApp() {
     | "missing-values-quick"
     | "normalization"
     | "outliers"
+    | "class-balancing"
     | "database-connectors"
     | "validation"
     | "text-preprocessing-basic-cleaning"
@@ -391,7 +393,7 @@ export function DataPreprocessingApp() {
     try {
       setProcessingStatus({ status: "processing", progress: 50, message: "Generating data summary..." })
 
-      const summaryRaw = await api.getDatasetSummary(datasetId)
+      const summaryRaw = await api.getDatasetSummary(datasetId!)
       // Add a type assertion to ensure summary is typed
       const summary = summaryRaw as {
         shape?: [number, number]
@@ -495,6 +497,31 @@ export function DataPreprocessingApp() {
       }, 3000)
     }
   }
+const handleCheckClassImbalance = async (target: string) => {
+  if (!ensureStructuredData()) return;
+  if (!datasetId) {
+    toast.error("No dataset loaded");
+    return;
+  }
+
+  try {
+    setProcessingStatus({ status: "processing", progress: 10, message: "Checking class imbalance..." });
+
+    // use the generic api.apiCall (useApi exposes apiCall)
+    // endpoint path depends on your backend — adjust `/imbalance` path if needed
+    const res = await api.apiCall<any>(`/dataset/${datasetId}/imbalance?target=${encodeURIComponent(target)}`);
+    setClassImbalance(res);
+
+    toast.success("Class imbalance stats received");
+    setProcessingStatus({ status: "completed", progress: 100, message: "Imbalance check complete" });
+    setTimeout(() => setProcessingStatus({ status: "idle", progress: 0, message: "" }), 1200);
+  } catch (err) {
+    console.error("Imbalance check failed:", err);
+    toast.error((err as any)?.message ?? "Imbalance check failed");
+    setProcessingStatus({ status: "error", progress: 0, message: "Imbalance check failed" });
+    setTimeout(() => setProcessingStatus({ status: "idle", progress: 0, message: "" }), 2000);
+  }
+};
 
   const handleCorrelationAnalysisClick = async () => {
     if (!ensureStructuredData()) return
@@ -502,7 +529,7 @@ export function DataPreprocessingApp() {
     try {
       setProcessingStatus({ status: "processing", progress: 50, message: "Analyzing correlations..." })
 
-      const correlationRaw = await api.getCorrelationAnalysis(datasetId)
+      const correlationRaw = await api.getCorrelationAnalysis(datasetId!)
       const correlation = correlationRaw as { numericalColumns?: any[] }
       setCorrelationData(correlation)
       setAnalysisMode("correlation")
@@ -709,7 +736,7 @@ export function DataPreprocessingApp() {
     try {
       setProcessingStatus({ status: "processing", progress: 50, message: "Preparing export..." })
 
-      const { blob, filename } = await api.exportDataset(datasetId)
+      const { blob, filename } = await api.exportDataset(datasetId!)
 
       // Create download link
       const url = window.URL.createObjectURL(blob)
@@ -927,6 +954,40 @@ export function DataPreprocessingApp() {
       `Outliers removed using ${method} method for ${columns.length} columns`,
     )
   }
+  const handleClassBalancingClick = () => {
+  if (!ensureStructuredData()) return
+
+  setAnalysisMode("class-balancing")
+
+  addLog({
+    title: "Class Balancing Panel",
+    date: new Date().toLocaleString(),
+    details: "Opened class balancing panel.",
+    type: "info",
+  })
+}
+type BalancingMethod =
+  | "random_over"
+  | "random_under"
+  | "smote"
+  | "smote_tomek"
+  | "class_weight"
+
+const handleClassBalancingApply = (
+  target: string,
+  method: BalancingMethod
+) => {
+  if (!datasetId) return
+  if (!ensureStructuredData()) return
+
+  handleProcessingOperation(
+    () => api.applyClassBalancing(datasetId!, target, method),
+    "Class Balancing",
+    `Class balancing applied using ${method} on target "${target}"`
+  )
+}
+
+
 
   const handleDatabaseConnectorsClick = () => {
     setAnalysisMode("database-connectors")
@@ -992,6 +1053,8 @@ export function DataPreprocessingApp() {
             onMissingValuesClick={handleAdvancedImputationClick}
             onQuickImputeClick={handleQuickImputeClick}
             onOutliersClick={handleOutliersClick}
+            onClassBalancingClick={handleClassBalancingClick}
+
             onExportClick={handleExportFile}
             onSaveProjectClick={handleSaveProject}
             onNormalizationClick={handleNormalizationClick}
@@ -1031,12 +1094,16 @@ export function DataPreprocessingApp() {
               onNormalizationApply={handleNormalizationApply}
               onEncodingApply={handleEncodingApply}
               onOutlierRemovalApply={handleOutlierRemovalApply}
+              onClassBalancingApply={handleClassBalancingApply}
               onDatabaseConnectionTest={handleDatabaseConnectionTest}
               onDatabaseConnectImport={handleDatabaseConnectImport}
               onUnstructuredImport={handleUnstructuredImport}
               onBasicCleaningApply={handleBasicCleaningApply}
               onTokenizationApply={handleTokenizationApply}
               onRefreshRandomSample={handleRefreshRandomSample}
+              classImbalance={classImbalance}
+              onCheckClassImbalance={handleCheckClassImbalance}
+
             />
           </ScrollArea>
         </div>

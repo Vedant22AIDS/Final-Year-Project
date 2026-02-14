@@ -16,6 +16,7 @@ interface LeftSidebarProps {
   onDatabaseConnectorsClick?: () => void;
   onNormalizationClick?: () => void;
   onOutliersClick?: () => void;
+  onClassBalancingClick?: () => void;
   onSaveProjectClick?: () => void;
   disabled?: boolean;
 
@@ -154,6 +155,7 @@ export function LeftSidebar({
   onDatabaseConnectorsClick,
   onNormalizationClick,
   onOutliersClick,
+  onClassBalancingClick,
   onSaveProjectClick,
   disabled = false,
 
@@ -203,6 +205,7 @@ export function LeftSidebar({
   onAdvancedImputationClick = onAdvancedImputationClick ?? onMissingValuesClick ?? noop;
   onDatabaseConnectorsClick = onDatabaseConnectorsClick ?? noop;
   onOutliersClick = onOutliersClick ?? noop;
+  onClassBalancingClick = onClassBalancingClick ?? noop;
   onSaveProjectClick = onSaveProjectClick ?? noop;
   // ensure handlers exist
   onPipelinesClick = onPipelinesClick ?? noop;
@@ -292,6 +295,7 @@ export function LeftSidebar({
     cleanData: "text-yellow-400",
     normalization: "text-purple-400",
     outliers: "text-red-400",
+    classBalancing: "text-cyan-400",
     engineerFeatures: "text-teal-400",
     aiSuggestions: "text-indigo-400",
     saveExport: "text-pink-400",
@@ -497,7 +501,84 @@ export function LeftSidebar({
               </span>
             </button>
           </CollapsibleSection>
+                    {/* Normalization */}
+          <div className={collapsed ? "flex justify-center mb-1" : ""}>
+            <button
+              className={`w-full flex items-center ${collapsed ? "justify-center" : "justify-start"} px-2 py-1.5 text-sm font-medium rounded-md transition-colors ${disabled || !hasStructuredData ? "opacity-50 cursor-not-allowed" : "hover:bg-[#1e1e1e]"
+                }`}
+              onClick={onNormalizationClick ?? noop}
+              disabled={disabled || !hasStructuredData}
+              title={collapsed ? "Normalize, encode, scale" : undefined}
+            >
+              <svg className={`h-4 w-4 ${iconColors.normalization}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M18.5 2h-13A2.5 2.5 0 0 0 3 4.5v15A2.5 2.5 0 0 0 5.5 22h13a2.5 2.5 0 0 0 2.5-2.5v-15A2.5 2.5 0 0 0 18.5 2z" />
+                <path d="M7 12h10" />
+                <path d="M12 17V7" />
+              </svg>
+              {!collapsed && (
+                <span className="ml-2 inline-flex items-center gap-2">
+                  <span className="h-2 w-2 rounded-full bg-sky-400"></span>
+                  Normalize & encode
+                </span>
+              )}
+            </button>
+          </div>
 
+          {/* Outliers */}
+          <div className={collapsed ? "flex justify-center mb-1" : ""}>
+            <button
+              className={`w-full flex items-center ${collapsed ? "justify-center" : "justify-start"} px-2 py-1.5 text-sm font-medium rounded-md transition-colors ${disabled || !hasStructuredData ? "opacity-50 cursor-not-allowed" : "hover:bg-[#1e1e1e]"
+                }`}
+              onClick={onOutliersClick}
+              disabled={disabled || !hasStructuredData}
+              title={collapsed ? "Remove outliers" : undefined}
+            >
+              <svg className={`h-4 w-4 ${iconColors.outliers}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z" />
+              </svg>
+              {!collapsed && (
+                <span className="ml-2 inline-flex items-center gap-2">
+                  <span className="h-2 w-2 rounded-full bg-sky-400"></span>
+                  Remove outliers
+                </span>
+              )}
+            </button>
+          </div>
+
+          {/* Class Balancing */}
+          <div className={collapsed ? "flex justify-center mb-1" : ""}>
+            <button
+              className={`w-full flex items-center ${
+                collapsed ? "justify-center" : "justify-start"
+              } px-2 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                disabled || !hasStructuredData
+                  ? "opacity-50 cursor-not-allowed"
+                  : "hover:bg-[#1e1e1e]"
+              }`}
+              onClick={onClassBalancingClick}
+              disabled={disabled || !hasStructuredData}
+              title={collapsed ? "Balance class distribution" : undefined}
+            >
+              <svg
+                className={`h-4 w-4 ${iconColors.classBalancing}`}
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <path d="M4 6h16" />
+                <path d="M4 12h10" />
+                <path d="M4 18h7" />
+              </svg>
+
+              {!collapsed && (
+                <span className="ml-2 inline-flex items-center gap-2">
+                  <span className="h-2 w-2 rounded-full bg-cyan-400"></span>
+                  Balance classes
+                </span>
+              )}
+            </button>
+          </div>
           {/* Text Preprocessing for Unstructured Data */}
           <CollapsibleSection
             title="Text Preprocessing"
@@ -599,49 +680,7 @@ export function LeftSidebar({
 
           </CollapsibleSection>
 
-          {/* Normalization */}
-          <div className={collapsed ? "flex justify-center mb-1" : ""}>
-            <button
-              className={`w-full flex items-center ${collapsed ? "justify-center" : "justify-start"} px-2 py-1.5 text-sm font-medium rounded-md transition-colors ${disabled || !hasStructuredData ? "opacity-50 cursor-not-allowed" : "hover:bg-[#1e1e1e]"
-                }`}
-              onClick={onNormalizationClick ?? noop}
-              disabled={disabled || !hasStructuredData}
-              title={collapsed ? "Normalize, encode, scale" : undefined}
-            >
-              <svg className={`h-4 w-4 ${iconColors.normalization}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M18.5 2h-13A2.5 2.5 0 0 0 3 4.5v15A2.5 2.5 0 0 0 5.5 22h13a2.5 2.5 0 0 0 2.5-2.5v-15A2.5 2.5 0 0 0 18.5 2z" />
-                <path d="M7 12h10" />
-                <path d="M12 17V7" />
-              </svg>
-              {!collapsed && (
-                <span className="ml-2 inline-flex items-center gap-2">
-                  <span className="h-2 w-2 rounded-full bg-sky-400"></span>
-                  Normalize & encode
-                </span>
-              )}
-            </button>
-          </div>
 
-          {/* Outliers */}
-          <div className={collapsed ? "flex justify-center mb-1" : ""}>
-            <button
-              className={`w-full flex items-center ${collapsed ? "justify-center" : "justify-start"} px-2 py-1.5 text-sm font-medium rounded-md transition-colors ${disabled || !hasStructuredData ? "opacity-50 cursor-not-allowed" : "hover:bg-[#1e1e1e]"
-                }`}
-              onClick={onOutliersClick}
-              disabled={disabled || !hasStructuredData}
-              title={collapsed ? "Remove outliers" : undefined}
-            >
-              <svg className={`h-4 w-4 ${iconColors.outliers}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z" />
-              </svg>
-              {!collapsed && (
-                <span className="ml-2 inline-flex items-center gap-2">
-                  <span className="h-2 w-2 rounded-full bg-sky-400"></span>
-                  Remove outliers
-                </span>
-              )}
-            </button>
-          </div>
 
           {/* Monitoring & Alerts */}
           <CollapsibleSection
