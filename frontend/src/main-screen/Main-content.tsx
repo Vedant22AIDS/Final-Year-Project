@@ -1,37 +1,27 @@
 "use client";
+import BasicCleaning, { type CleaningOption } from "../features/text-preprocessing/basic-cleaning.tsx";
+import DataOverview from "../features/DataOverview.tsx";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { DataTable } from "./Data-table.tsx";
+import ValidationDashboard from "../features/validation/validation-dashboard.tsx";
+
 import { Button } from "../components/ui/button.tsx";
-import { Tabs, TabsList, TabsTrigger } from "../components/ui/tabs.tsx";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card.tsx";
-import { Badge } from "../components/ui/badge.tsx";
-import { Progress } from "../components/ui/progress.tsx";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../components/ui/tooltip.tsx";
-import { BarChart } from "../components/ui/charts.tsx";
-import {
-  AlertCircle,
-  BarChart3,
-  Check,
-  ChevronRight,
-  FileText,
-  Filter,
-  LineChartIcon,
-  List,
-  PieChartIcon,
-  RefreshCw,
-  Search,
-  Settings,
-  Sparkles,
-  Table,
-  ArrowLeft,
-} from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { VisualizationPanel } from "../features/visualization-panel.tsx";
 import { AdvancedCharts } from "../features/advanced-charts.tsx";
 import { DataSummaryView } from "../features/data-summary-view.tsx";
 import { CorrelationAnalysisView } from "../features/correlation-analysis-view.tsx";
 import { MissingValuesPanel } from "../features/missing-values-panel.tsx";
 import { NormalizationPanel } from "../features/normalization-panel.tsx";
+import { QuickImputePanel } from "../features/quick-impute-panel.tsx";
+import { OutlierRemovalPanel } from "../features/outlier-removal-panel.tsx";
+import { DatabaseConnectorsPanel } from "../features/database-connectors-panel.tsx";
+import FilteringPanel from "../features/text-preprocessing/filtering-panel.tsx";
+import TextNormalizationPanel from "../features/text-preprocessing/normalization-panel.tsx";
+import FeatureExtraction from "../features/text-preprocessing/feature-extraction.tsx";
+import LabelEncodingPanel from "../features/text-preprocessing/label-encoding.tsx";
+import ImportTextData from "../features/text-preprocessing/import-data.tsx";
 
 interface VisualizationConfig {
   type: string;
@@ -39,9 +29,48 @@ interface VisualizationConfig {
   features: string[];
 }
 
+type TokenizationApplyConfig = {
+  method: "word" | "sentence" | "ngram";
+  nGramSize: number;
+};
+
+const buildTokenPreview = (text: string, method: "word" | "sentence" | "ngram", ngram: number): string[] => {
+  if (!text.trim()) return [];
+
+  const words = text.match(/\b\w+(?:'\w+)?\b/g) || [];
+
+  if (method === "word") {
+    return words.slice(0, 12);
+  }
+
+  if (method === "sentence") {
+    return text
+      .trim()
+      .split(/(?<=[.!?])\s+/)
+      .map((entry) => entry.trim())
+      .filter(Boolean)
+      .slice(0, 8);
+  }
+
+  if (words.length < ngram) return [];
+
+  return Array.from({ length: words.length - ngram + 1 }, (_, idx) =>
+    words.slice(idx, idx + ngram).join(" "),
+  ).slice(0, 12);
+};
+
 // ...existing code...
 export interface MainContentProps {
   tableData: any[]
+  dataKind: "none" | "structured" | "unstructured"
+  sourceText: string
+  unstructuredData: {
+    text: string
+    fileName: string
+    charCount: number
+    wordCount: number
+    lineCount: number
+  } | null
   activeTab: "Head" | "Tail" | "Random Sample"
   setActiveTab: React.Dispatch<React.SetStateAction<"Head" | "Tail" | "Random Sample">>
   technique: {
@@ -52,31 +81,71 @@ export interface MainContentProps {
     categories: string
   }
   fileName: string
-  analysisMode: "overview" | "visualization" | "summary" | "correlation" | "missing-values" | "normalization"
+  analysisMode:
+  | "overview"
+  | "visualization"
+  | "summary"
+  | "correlation"
+  | "missing-values-advanced"
+  | "missing-values-quick"
+  | "normalization"
+  | "outliers"
+  | "database-connectors"
+  | "validation"
+  | "text-preprocessing-basic-cleaning"
+  | "text-preprocessing-tokenization"
+  | "text-preprocessing-filtering"
+  | "text-preprocessing-normalization"
+  | "text-preprocessing-feature-extraction"
+  | "text-preprocessing-label-encoding"
+  | "text-preprocessing-import-data"
+
   onBackToOverview: () => void
   summaryData: any
+  datasetSummary: any
   correlationData: any
   disabled: boolean
+  onQuickImputeApply: (strategy: string, fillValue?: string) => void
   onMissingValuesApply: (strategy: string, columns: string[], fillValue?: string) => void
   onNormalizationApply: (method: string, columns: string[]) => void
   onEncodingApply: (method: string, columns: string[]) => void
+  onOutlierRemovalApply: (method: "iqr" | "zscore", columns: string[], threshold: number) => void
+  onDatabaseConnectionTest: (payload: any) => Promise<void> | void
+  onDatabaseConnectImport: (payload: any) => Promise<void> | void
+  onUnstructuredImport: (payload: { text: string; fileName: string; charCount: number; wordCount: number; lineCount: number }) => void
+  onBasicCleaningApply: (options: CleaningOption[]) => Promise<{ cleanedText: string } | void> | void
+  onTokenizationApply: (config: TokenizationApplyConfig) => Promise<{ token_count: number; tokens: string[] } | void> | void
   onRefreshRandomSample: () => Promise<void>
 }
 // ...existing code...
 
 export function MainContent({
   tableData,
+  dataKind,
+  sourceText,
+  unstructuredData,
   activeTab,
   setActiveTab,
+  technique,
   fileName,
   analysisMode = "overview",
   onBackToOverview,
   summaryData,
+  datasetSummary,
   correlationData,
   disabled,
+  onQuickImputeApply,
   onMissingValuesApply,
   onNormalizationApply,
   onEncodingApply,
+  onOutlierRemovalApply,
+  onDatabaseConnectionTest,
+  onDatabaseConnectImport,
+  onUnstructuredImport,
+  onBasicCleaningApply,
+  onTokenizationApply,
+  onRefreshRandomSample,
+
 }: MainContentProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [dataQuality, setDataQuality] = useState<{
@@ -114,6 +183,12 @@ export function MainContent({
   const [anomalies, setAnomalies] = useState<any[]>([]);
   const [recommendations, setRecommendations] = useState<string[]>([]);
   const [currentVisualization, setCurrentVisualization] = useState<VisualizationConfig | null>(null);
+  // 🔹 Tokenization state (MUST be here – top level)
+  const [tokenizationMethod, setTokenizationMethod] = useState<
+    "word" | "sentence" | "ngram"
+  >("word");
+
+  const [ngramSize, setNgramSize] = useState(2);
 
   // derive the rows to show based on active tab and search query
   const displayData = useMemo(() => {
@@ -388,6 +463,169 @@ export function MainContent({
       </div>
     );
   }
+  if (analysisMode === "text-preprocessing-basic-cleaning") {
+    return (
+      <BasicCleaning
+        onBack={onBackToOverview}
+        sourceText={unstructuredData?.text || ""}
+        onApply={onBasicCleaningApply}
+        disabled={disabled}
+      />
+    );
+  }
+
+
+  if (analysisMode === "text-preprocessing-tokenization") {
+    const previewTokens = buildTokenPreview(sourceText || "", tokenizationMethod, ngramSize);
+
+    return (
+      <div className="flex-1 overflow-y-auto bg-[#000] p-4">
+        <Button
+          variant="outline"
+          onClick={onBackToOverview}
+          className="mb-4 bg-[#1e1e1e] border-[#2a2a2a] hover:bg-[#2a2a2a]"
+        >
+          <ArrowLeft className="h-4 w-4 mr-2" />
+          Back
+        </Button>
+
+        <h2 className="text-2xl font-bold mb-1">Tokenization</h2>
+        <p className="text-gray-400 mb-6">
+          Split text into meaningful units for NLP processing.
+        </p>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          {[
+            { key: "word", label: "Word Tokenization", desc: "Split text into individual words" },
+            { key: "sentence", label: "Sentence Tokenization", desc: "Split text into sentences" },
+            { key: "ngram", label: "N-gram Generation", desc: "Create sequences of N words" },
+          ].map((item) => (
+            <Card
+              key={item.key}
+              onClick={() => setTokenizationMethod(item.key as any)}
+              className={`cursor-pointer border transition ${tokenizationMethod === item.key
+                ? "border-blue-500 bg-[#111]"
+                : "border-[#2a2a2a] bg-[#0f0f0f] hover:bg-[#151515]"
+                }`}
+            >
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm">{item.label}</CardTitle>
+              </CardHeader>
+              <CardContent className="text-xs text-gray-400">
+                {item.desc}
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+
+        <Card className="bg-[#111] border-[#2a2a2a] mb-6">
+          <CardHeader>
+            <CardTitle className="text-sm">N-gram Configuration</CardTitle>
+          </CardHeader>
+          <CardContent className="flex items-center gap-4">
+            <label className="text-sm text-gray-400">N-gram size</label>
+            <input
+              type="number"
+              min={2}
+              max={5}
+              disabled={tokenizationMethod !== "ngram"}
+              value={ngramSize}
+              onChange={(e) => {
+                const parsed = Number(e.target.value);
+                if (Number.isNaN(parsed)) return;
+                setNgramSize(Math.max(2, Math.min(5, parsed)));
+              }}
+              className={`w-20 px-2 py-1 rounded bg-[#1a1a1a] border border-[#2a2a2a] text-sm ${tokenizationMethod !== "ngram" ? "opacity-50 cursor-not-allowed" : ""}`}
+            />
+          </CardContent>
+        </Card>
+
+        <Card className="bg-[#111] border-[#2a2a2a] mb-6">
+          <CardHeader>
+            <CardTitle className="text-sm">Preview</CardTitle>
+          </CardHeader>
+          <CardContent className="text-xs text-gray-400">
+            {previewTokens.length > 0 ? (
+              <>Example -&gt; <code>[{previewTokens.map((token) => `"${token}"`).join(", ")}]</code></>
+            ) : (
+              <>No text available for preview.</>
+            )}
+          </CardContent>
+        </Card>
+
+        <div className="flex justify-end gap-3">
+          <Button
+            variant="outline"
+            className="bg-[#1a1a1a] border-[#2a2a2a]"
+            disabled={disabled}
+            onClick={() => {
+              setTokenizationMethod("word");
+              setNgramSize(2);
+            }}
+          >
+            Reset
+          </Button>
+
+          <Button
+            className="bg-blue-600 hover:bg-blue-700"
+            disabled={disabled || !sourceText.trim()}
+            onClick={() => {
+              onTokenizationApply({
+                method: tokenizationMethod,
+                nGramSize: ngramSize,
+              });
+            }}
+          >
+            Apply Tokenization
+          </Button>
+        </div>
+      </div>
+    );
+  }
+if (analysisMode === "text-preprocessing-filtering") {
+    return (
+      <FilteringPanel
+        onBack={onBackToOverview}
+        disabled={disabled}
+        onApply={(config) => {
+          console.log("Filtering config:", config);
+        }}
+      />
+    );
+  }
+
+  if (analysisMode === "text-preprocessing-feature-extraction") {
+    return (
+      <div className="flex-1 overflow-y-auto bg-[#000] p-4">
+        <FeatureExtraction />
+      </div>
+    );
+  }
+
+  if (analysisMode === "text-preprocessing-normalization") {
+    return (
+      <TextNormalizationPanel
+        onBack={onBackToOverview}
+        disabled={disabled}
+        onApply={(config) => {
+          console.log("Normalization config:", config);
+        }}
+      />
+    );
+  }
+
+  if (analysisMode === "text-preprocessing-label-encoding") {
+    return (
+      <LabelEncodingPanel
+        onBack={onBackToOverview}
+        disabled={disabled}
+      />
+    );
+  }
+  if (analysisMode === "text-preprocessing-import-data") {
+    return <ImportTextData onBack={onBackToOverview} onImport={onUnstructuredImport} disabled={disabled} />;
+  }
+
 
   if (analysisMode === "correlation") {
     return (
@@ -405,10 +643,76 @@ export function MainContent({
     );
   }
 
-  if (analysisMode === "missing-values") {
+  if (analysisMode === "missing-values-quick") {
     return (
       <div className="flex-1 overflow-y-auto bg-[#000] p-4">
-        <MissingValuesPanel data={tableData} onBack={onBackToOverview || (() => {})} onApply={onMissingValuesApply || (() => {})} disabled={disabled} />
+        <QuickImputePanel
+          onBack={onBackToOverview || (() => { })}
+          onApply={onQuickImputeApply || (() => { })}
+          disabled={disabled}
+        />
+      </div>
+    );
+  }
+
+  if (analysisMode === "missing-values-advanced") {
+    return (
+      <div className="flex-1 overflow-y-auto bg-[#000] p-4">
+        <MissingValuesPanel
+          data={tableData}
+          missingStats={datasetSummary?.missing_values || {}}
+          dtypes={datasetSummary?.dtypes || {}}
+          totalRows={datasetSummary?.shape?.[0] || 0}
+          onBack={onBackToOverview || (() => { })}
+          onApply={onMissingValuesApply || (() => { })}
+          disabled={disabled}
+        />
+      </div>
+    );
+  }
+
+  if (analysisMode === "database-connectors") {
+    return (
+      <div className="flex-1 overflow-y-auto bg-[#000] p-4">
+        <DatabaseConnectorsPanel
+          onBack={onBackToOverview}
+          onTestConnection={onDatabaseConnectionTest}
+          onConnectAndImport={onDatabaseConnectImport}
+          disabled={disabled}
+        />
+      </div>
+    );
+  }
+
+  if (analysisMode === "outliers") {
+    return (
+      <div className="flex-1 overflow-y-auto bg-[#000] p-4">
+        <OutlierRemovalPanel
+          data={tableData}
+          dtypes={datasetSummary?.dtypes || {}}
+          onBack={onBackToOverview}
+          onApply={onOutlierRemovalApply}
+          disabled={disabled}
+        />
+      </div>
+    );
+  }
+  if (analysisMode === "validation") {
+    return (
+      <div className="flex-1 overflow-y-auto bg-[#000] p-4">
+        <Button
+          variant="outline"
+          onClick={onBackToOverview}
+          className="mb-4 bg-[#1e1e1e] border-[#2a2a2a] hover:bg-[#2a2a2a]"
+        >
+          <ArrowLeft className="h-4 w-4 mr-2" />
+          Back to Overview
+        </Button>
+
+        <ValidationDashboard
+          data={tableData}
+          onBack={onBackToOverview}
+        />
       </div>
     );
   }
@@ -416,7 +720,7 @@ export function MainContent({
   if (analysisMode === "normalization") {
     return (
       <div className="flex-1 overflow-y-auto bg-[#000] p-4">
-        <NormalizationPanel data={tableData} onBack={onBackToOverview || (() => {})} onNormalize={onNormalizationApply || (() => {})} onEncode={onEncodingApply || (() => {})} disabled={disabled} />
+        <NormalizationPanel data={tableData} onBack={onBackToOverview || (() => { })} onNormalize={onNormalizationApply || (() => { })} onEncode={onEncodingApply || (() => { })} disabled={disabled} />
       </div>
     );
   }
@@ -454,366 +758,26 @@ export function MainContent({
     }
   };
 
-  // overview UI
+  // remove the long overview JSX and replace with:
   return (
-    <div className="flex-1 overflow-y-auto bg-[#000] p-4 space-y-6">
-      {/* Data Preview */}
-      <div className="bg-[#121212] border border-[#2a2a2a] rounded-md overflow-hidden">
-        <div className="p-4 pb-3 border-b border-[#2a2a2a]">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center space-x-2">
-              <Table className="h-5 w-5 text-blue-400" />
-              <h3 className="text-base font-medium">Data Preview</h3>
-              {fileName && <Badge variant="outline" className="ml-2 text-xs">{fileName}</Badge>}
-            </div>
-
-            <div className="flex items-center space-x-2">
-              <div className="relative">
-                <Search className="h-4 w-4 absolute left-2.5 top-2.5 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Search data..."
-                  className="h-9 w-64 rounded-md bg-[#1a1a1a] border border-[#2a2a2a] pl-9 pr-3 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                />
-              </div>
-
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button variant="outline" size="icon" className="h-9 w-9 bg-[#1a1a1a] border-[#2a2a2a]">
-                      <Filter className="h-4 w-4" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Filter Data</TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button variant="outline" size="icon" className="h-9 w-9 bg-[#1a1a1a] border-[#2a2a2a]">
-                      <Settings className="h-4 w-4" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Table Settings</TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between">
-            <div className="bg-[#252525] rounded p-1">
-              <div className="flex space-x-1">
-                {(["Head", "Tail", "Random Sample"] as const).map((tab) => (
-                  <button
-                    key={tab}
-                    onClick={() => setActiveTab(tab)}
-                    className={`px-3 py-1 text-xs rounded-sm transition-colors ${activeTab === tab ? "bg-[#3b3b3b] text-white" : "text-gray-400 hover:text-white"}`}
-                  >
-                    {tab}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="text-sm text-gray-400">
-              {searchQuery ? (
-                <span>Filtered: {displayData.length} of {tableData.length} rows</span>
-              ) : (
-                <span>Showing {displayData.length} of {tableData.length} rows</span>
-              )}
-            </div>
-          </div>
-        </div>
-
-        <div className="p-4">
-          <DataTable data={displayData} fileName={fileName} />
-        </div>
-      </div>
-
-      {/* Data Quality Dashboard */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* Data Quality Score */}
-        <Card className="bg-[#121212] border-[#2a2a2a]">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-lg flex items-center justify-between">
-              <div className="flex items-center">
-                <FileText className="h-5 w-5 mr-2 text-blue-400" />
-                Data Quality Score
-              </div>
-              <Badge className={`${getQualityColor(dataQuality.score)} bg-opacity-20`}>
-                {dataQuality.score >= 90 ? "Excellent" : dataQuality.score >= 80 ? "Good" : dataQuality.score >= 60 ? "Fair" : dataQuality.score >= 40 ? "Poor" : "Critical"}
-              </Badge>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-center py-4">
-              <div className="relative w-32 h-32">
-                <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
-                  <circle cx="50" cy="50" r="45" fill="transparent" stroke="#2a2a2a" strokeWidth="8" />
-                  <circle
-                    cx="50"
-                    cy="50"
-                    r="45"
-                    fill="transparent"
-                    stroke={dataQuality.score >= 80 ? "#22c55e" : dataQuality.score >= 60 ? "#eab308" : "#ef4444"}
-                    strokeWidth="8"
-                    strokeDasharray={`${dataQuality.score * 2.83} ${283 - dataQuality.score * 2.83}`}
-                    strokeLinecap="round"
-                    className="transition-all duration-1000 ease-out"
-                  />
-                </svg>
-                <div className="absolute inset-0 flex flex-col items-center justify-center">
-                  <span className={`text-3xl font-bold ${getQualityColor(dataQuality.score)}`}>{dataQuality.score}</span>
-                  <span className="text-xs text-gray-400">/ 100</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-2 mt-2">
-              {dataQuality.issues.slice(0, 3).map((issue, i) => (
-                <div key={i} className="flex items-center justify-between text-sm">
-                  <div className="flex items-center flex-1">
-                    <Badge className={`mr-2 text-xs ${getSeverityColor(issue.severity)}`}>{issue.severity}</Badge>
-                    <span className="truncate">{issue.type}</span>
-                  </div>
-                  <span className="text-gray-400 text-xs ml-2">{issue.count}</span>
-                </div>
-              ))}
-              {dataQuality.issues.length > 3 && <div className="text-sm text-gray-400 text-center pt-1 border-t border-[#2a2a2a]">+{dataQuality.issues.length - 3} more issues</div>}
-              {dataQuality.issues.length === 0 && (
-                <div className="text-sm text-green-400 text-center py-2 flex items-center justify-center">
-                  <Check className="h-4 w-4 mr-1" />
-                  No quality issues detected
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Quick Stats */}
-        <Card className="bg-[#121212] border-[#2a2a2a]">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-lg flex items-center">
-              <BarChart3 className="h-5 w-5 mr-2 text-blue-400" />
-              Dataset Statistics
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1">
-                <div className="text-sm text-gray-400">Total Rows</div>
-                <div className="text-xl font-semibold">{quickStats.rowCount.toLocaleString()}</div>
-                <div className="text-xs text-gray-500">Data points</div>
-              </div>
-              <div className="space-y-1">
-                <div className="text-sm text-gray-400">Total Columns</div>
-                <div className="text-xl font-semibold">{quickStats.columnCount}</div>
-                <div className="text-xs text-gray-500">Features</div>
-              </div>
-              <div className="space-y-1">
-                <div className="text-sm text-gray-400">Data Completeness</div>
-                <div className="text-xl font-semibold text-blue-400">{quickStats.completeness}%</div>
-                <div className="text-xs text-gray-500">{quickStats.missingValues.toLocaleString()} missing</div>
-              </div>
-              <div className="space-y-1">
-                <div className="text-sm text-gray-400">Data Uniqueness</div>
-                <div className="text-xl font-semibold text-purple-400">
-                  {quickStats.duplicateRows === 0 ? "100%" : `${(((quickStats.rowCount - quickStats.duplicateRows) / Math.max(quickStats.rowCount, 1)) * 100).toFixed(1)}%`}
-                </div>
-                <div className="text-xs text-gray-500">{quickStats.duplicateRows} duplicates</div>
-              </div>
-            </div>
-
-            <div className="mt-4 pt-3 border-t border-[#2a2a2a]">
-              <div className="text-sm text-gray-400 mb-3">Column Distribution</div>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center">
-                    <div className="w-3 h-3 bg-blue-500 rounded-full mr-2"></div>
-                    <span className="text-sm">Numerical</span>
-                  </div>
-                  <div className="flex items-center">
-                    <span className="text-sm font-medium mr-2">{quickStats.numericColumns}</span>
-                    <span className="text-xs text-gray-400">({quickStats.columnCount ? ((quickStats.numericColumns / quickStats.columnCount) * 100).toFixed(0) : 0}%)</span>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center">
-                    <div className="w-3 h-3 bg-purple-500 rounded-full mr-2"></div>
-                    <span className="text-sm">Date/Time</span>
-                  </div>
-                  <div className="flex items-center">
-                    <span className="text-sm font-medium mr-2">{quickStats.dateColumns}</span>
-                    <span className="text-xs text-gray-400">({quickStats.columnCount ? ((quickStats.dateColumns / quickStats.columnCount) * 100).toFixed(0) : 0}%)</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-3 pt-3 border-t border-[#2a2a2a] text-center">
-              <div className="text-xs text-gray-400">Memory Usage: {quickStats.memoryUsage}</div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Recommended Actions */}
-        <Card className="bg-[#121212] border-[#2a2a2a]">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-lg flex items-center">
-              <Sparkles className="h-5 w-5 mr-2 text-blue-400" />
-              Recommended Actions
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              {recommendations.slice(0, 4).map((rec, i) => (
-                <div key={i} className="flex items-start space-x-2 text-sm">
-                  <ChevronRight className="h-4 w-4 mt-0.5 text-blue-400 flex-shrink-0" />
-                  <span>{rec}</span>
-                </div>
-              ))}
-              {recommendations.length === 0 && <div className="text-sm text-gray-400 text-center py-2">No recommendations at this time</div>}
-            </div>
-
-            <div className="mt-4 pt-2 flex justify-center">
-              <Button variant="outline" size="sm" className="bg-[#1a1a1a] border-[#2a2a2a] text-sm">
-                <Sparkles className="h-3.5 w-3.5 mr-1.5" />
-                Auto-Fix Issues
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Column Insights & Anomalies */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card className="bg-[#121212] border-[#2a2a2a] md:col-span-2">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-lg flex items-center justify-between">
-              <div className="flex items-center">
-                <List className="h-5 w-5 mr-2 text-blue-400" />
-                Column Insights
-              </div>
-              <Button variant="outline" size="sm" className="bg-[#1a1a1a] border-[#2a2a2a] text-xs">
-                <RefreshCw className="h-3 w-3 mr-1.5" />
-                Refresh
-              </Button>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="max-h-80 overflow-y-auto pr-2">
-            <div className="space-y-3">
-              {columnInsights.slice(0, 6).map((col: any, i: number) => (
-                <div key={i} className="p-3 bg-[#1a1a1a] rounded-lg border border-[#2a2a2a]">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center space-x-2">
-                      <span className="font-medium">{col.name}</span>
-                      <Badge className={getTypeColor(col.type)}>{col.type}</Badge>
-                    </div>
-                    {col.nullCount > 0 && <span className="text-xs text-red-400">{col.nullPercentage.toFixed(1)}% missing</span>}
-                  </div>
-
-                  {col.nullCount > 0 && (
-                    <div className="mb-2">
-                      <div className="flex justify-between text-xs mb-1">
-                        <span>Completeness</span>
-                        <span>{(100 - col.nullPercentage).toFixed(1)}%</span>
-                      </div>
-                      <Progress value={100 - col.nullPercentage} className="h-1.5" />
-                    </div>
-                  )}
-
-                  <div className="text-xs text-gray-400 space-y-1">
-                    {col.insights.map((insight: string, j: number) => (
-                      <div key={j}>{insight}</div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-
-              {columnInsights.length > 6 && <div className="text-center text-sm text-gray-400 py-2">+{columnInsights.length - 6} more columns</div>}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-[#121212] border-[#2a2a2a]">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-lg flex items-center">
-              <AlertCircle className="h-5 w-5 mr-2 text-yellow-400" />
-              Potential Anomalies
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="max-h-80 overflow-y-auto">
-            {anomalies.length > 0 ? (
-              <div className="space-y-3">
-                {anomalies.map((anomaly, i) => (
-                  <div key={i} className="p-3 bg-[#1a1a1a] rounded-lg border border-[#2a2a2a]">
-                    <div className="font-medium text-sm mb-1">{anomaly.column}</div>
-                    <div className="text-xs text-yellow-400 mb-1">{anomaly.issue}</div>
-                    <div className="text-xs text-gray-400">{anomaly.recommendation}</div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="flex flex-col items-center justify-center py-8 text-center">
-                <Check className="h-10 w-10 text-green-400 mb-2" />
-                <div className="text-sm font-medium">No anomalies detected</div>
-                <div className="text-xs text-gray-400 mt-1">Your data looks clean</div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Data Distribution Preview */}
-      <Card className="bg-[#121212] border-[#2a2a2a]">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-lg flex items-center justify-between">
-            <div className="flex items-center">
-              <BarChart3 className="h-5 w-5 mr-2 text-blue-400" />
-              Data Distribution Preview
-            </div>
-            <Tabs defaultValue="bar" className="h-8">
-              <TabsList className="bg-[#1a1a1a] h-8">
-                <TabsTrigger value="bar" className="h-7 text-xs data-[state=active]:bg-[#3b3b3b]">
-                  <BarChart3 className="h-3.5 w-3.5 mr-1.5" />
-                  Bar
-                </TabsTrigger>
-                <TabsTrigger value="line" className="h-7 text-xs data-[state=active]:bg-[#3b3b3b]">
-                  <LineChartIcon className="h-3.5 w-3.5 mr-1.5" />
-                  Line
-                </TabsTrigger>
-                <TabsTrigger value="pie" className="h-7 text-xs data-[state=active]:bg-[#3b3b3b]">
-                  <PieChartIcon className="h-3.5 w-3.5 mr-1.5" />
-                  Pie
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {columnInsights.filter((c) => c.type === "numeric").slice(0, 3).map((col: any, i: number) => (
-              <div key={i} className="h-48">
-                <div className="text-sm font-medium mb-1">{col.name}</div>
-                <div className="h-40 bg-[#1a1a1a] rounded-lg border border-[#2a2a2a] p-2">
-                  <BarChart data={[
-                    { name: "Category 1", value: 40 },
-                    { name: "Category 2", value: 30 },
-                    { name: "Category 3", value: 20 },
-                    { name: "Category 4", value: 10 },
-                  ]} />
-                </div>
-              </div>
-            ))}
-
-            {columnInsights.filter((c) => c.type === "numeric").length === 0 && (
-              <div className="col-span-3 flex items-center justify-center h-48 text-gray-400">No numeric columns available for visualization</div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-    </div>
+    <DataOverview
+      tableData={tableData}
+      dataKind={dataKind}
+      unstructuredData={unstructuredData}
+      displayData={displayData}
+      fileName={fileName}
+      activeTab={activeTab}
+      setActiveTab={setActiveTab}
+      searchQuery={searchQuery}
+      setSearchQuery={setSearchQuery}
+      quickStats={quickStats}
+      dataQuality={dataQuality}
+      columnInsights={columnInsights}
+      recommendations={recommendations}
+      anomalies={anomalies}
+      onRefreshRandomSample={onRefreshRandomSample}
+    />
   );
+
 }
+

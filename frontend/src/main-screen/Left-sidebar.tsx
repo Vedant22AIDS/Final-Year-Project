@@ -2,33 +2,71 @@
 
 import * as React from "react";
 import { useState } from "react";
+import { ScrollArea } from "../components/ui/ScrollArea.tsx";
 
 interface LeftSidebarProps {
   handleFileUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
   handleImputeMissingValues: () => void;
+  onQuickImputeClick?: () => void;
+  onAdvancedImputationClick?: () => void;
   onVisualizationClick: () => void;
   onDataSummaryClick: () => void;
   onCorrelationAnalysisClick: () => void;
   onMissingValuesClick?: () => void;
+  onDatabaseConnectorsClick?: () => void;
   onNormalizationClick?: () => void;
+  onOutliersClick?: () => void;
+  onSaveProjectClick?: () => void;
   disabled?: boolean;
 
   /* New optional handlers for expanded feature set */
-  onConnectorsClick?: () => void;
   onPipelinesClick?: () => void;
-  onScheduleClick?: () => void;
-  onJobHistoryClick?: () => void;
-  onVersioningClick?: () => void;
-  onLineageClick?: () => void;
   onValidationClick?: () => void;
   onMonitoringClick?: () => void;
   onPermissionsClick?: () => void;
   onCollaborationClick?: () => void;
-  onIntegrationsClick?: () => void;
-  onTemplatesClick?: () => void;
-  onComplianceClick?: () => void;
-  onObservabilityClick?: () => void;
   onExportClick?: () => void;
+
+  /* Text Preprocessing handlers */
+  onImportTextDataClick?: () => void;
+  onLabelEncodingClick?: () => void;
+  onFeatureExtractionClick?: () => void;
+  onTextPreprocessingClick?: () => void;
+  onTokenizationClick?: () => void;
+  // Text Preprocessing – Normalization
+  onTextNormalizationClick?: () => void;
+
+  // Category 1: Basic Text Cleaning
+  onRemoveHTMLClick?: () => void;
+  onBasicCleaningClick?: () => void
+  onRemoveURLsClick?: () => void;
+  onRemoveSpecialCharsClick?: () => void;
+  onNormalizeCaseClick?: () => void;
+  onRemoveWhitespaceClick?: () => void;
+  // Category 2: Tokenization
+  onWordTokenizeClick?: () => void;
+  onSentenceTokenizeClick?: () => void;
+  onNGramClick?: () => void;
+  // Category 3: Stop Words
+  onRemoveStopWordsClick?: () => void;
+  onMinWordLengthClick?: () => void;
+  // Category 4: Normalization
+  onStemmingClick?: () => void;
+  onLemmatizationClick?: () => void;
+  onSpellCorrectionClick?: () => void;
+  // Category 5: Feature Extraction
+  onTFIDFClick?: () => void;
+  onBagOfWordsClick?: () => void;
+  onWordEmbeddingsClick?: () => void;
+  // Category 6: Language & Encoding
+  onLanguageDetectionClick?: () => void;
+  onTranslationClick?: () => void;
+  onEncodingNormalizationClick?: () => void;
+  // Category 9: Text Statistics
+  onWordFrequencyClick?: () => void;
+  onTextStatsClick?: () => void;
+  onSentimentAnalysisClick?: () => void;
+  dataKind?: "none" | "structured" | "unstructured";
 }
 
 interface CollapsibleSectionProps {
@@ -61,9 +99,8 @@ function CollapsibleSection({
           }}
           disabled={disabled}
           title={title}
-          className={`flex items-center justify-center p-2 rounded-md transition-colors ${
-            disabled ? "opacity-50 cursor-not-allowed" : "hover:bg-[#1e1e1e]"
-          }`}
+          className={`flex items-center justify-center p-2 rounded-md transition-colors ${disabled ? "opacity-50 cursor-not-allowed" : "hover:bg-[#1e1e1e]"
+            }`}
         >
           {icon}
         </button>
@@ -72,17 +109,16 @@ function CollapsibleSection({
   }
 
   return (
-    <div className="mb-1">
+    <div className="mb-2 rounded-xl border border-[#1a1a1a] bg-[#070707] overflow-hidden shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
       <button
         onClick={onToggle}
         disabled={disabled}
-        className={`w-full flex items-center justify-between px-2 py-1.5 text-sm font-medium rounded-md transition-colors ${
-          disabled ? "opacity-50 cursor-not-allowed" : "hover:bg-[#1e1e1e]"
-        }`}
+        className={`w-full flex items-center justify-between px-3 py-2 text-xs font-semibold tracking-wide transition-colors ${disabled ? "opacity-50 cursor-not-allowed" : "hover:bg-[#101010]"
+          }`}
       >
         <div className="flex items-center">
           {icon}
-          <span className="ml-2">{title}</span>
+          <span className="ml-2 text-slate-200">{title}</span>
         </div>
         <svg
           xmlns="http://www.w3.org/2000/svg"
@@ -100,7 +136,7 @@ function CollapsibleSection({
           <polyline points="6 9 12 15 18 9" />
         </svg>
       </button>
-      {isOpen && <div className="pl-6 pr-2 py-1 space-y-1">{children}</div>}
+      {isOpen && <div className="ls-section-body pl-3 pr-2 py-2 space-y-1 border-t border-[#141414] bg-[#050505]">{children}</div>}
     </div>
   );
 }
@@ -109,48 +145,107 @@ function CollapsibleSection({
 export function LeftSidebar({
   handleFileUpload,
   handleImputeMissingValues,
+  onQuickImputeClick,
+  onAdvancedImputationClick,
   onVisualizationClick,
   onDataSummaryClick,
   onCorrelationAnalysisClick,
   onMissingValuesClick,
+  onDatabaseConnectorsClick,
   onNormalizationClick,
+  onOutliersClick,
+  onSaveProjectClick,
   disabled = false,
 
   // new optional handlers (safe defaults used inside)
-  onConnectorsClick,
   onPipelinesClick,
-  onScheduleClick,
-  onJobHistoryClick,
-  onVersioningClick,
-  onLineageClick,
   onValidationClick,
   onMonitoringClick,
   onPermissionsClick,
   onCollaborationClick,
-  onIntegrationsClick,
-  onTemplatesClick,
-  onComplianceClick,
-  onObservabilityClick,
   onExportClick,
+
+  // text preprocessing handlers
+  onImportTextDataClick,
+  onLabelEncodingClick,
+  onFeatureExtractionClick,
+  onTextNormalizationClick,
+  onTextPreprocessingClick,
+  onBasicCleaningClick,
+  onTokenizationClick,
+  onRemoveHTMLClick,
+  onRemoveURLsClick,
+  onRemoveSpecialCharsClick,
+  onNormalizeCaseClick,
+  onRemoveWhitespaceClick,
+  onWordTokenizeClick,
+  onSentenceTokenizeClick,
+  onNGramClick,
+  onRemoveStopWordsClick,
+  onMinWordLengthClick,
+  onStemmingClick,
+  onLemmatizationClick,
+  onSpellCorrectionClick,
+  onTFIDFClick,
+  onBagOfWordsClick,
+  onWordEmbeddingsClick,
+  onLanguageDetectionClick,
+  onTranslationClick,
+  onEncodingNormalizationClick,
+  onWordFrequencyClick,
+  onTextStatsClick,
+  onSentimentAnalysisClick,
+  dataKind = "none",
+
 }: LeftSidebarProps) {
-  const noop = () => {};
+  const noop = () => { };
+  onQuickImputeClick = onQuickImputeClick ?? handleImputeMissingValues;
+  onAdvancedImputationClick = onAdvancedImputationClick ?? onMissingValuesClick ?? noop;
+  onDatabaseConnectorsClick = onDatabaseConnectorsClick ?? noop;
+  onOutliersClick = onOutliersClick ?? noop;
+  onSaveProjectClick = onSaveProjectClick ?? noop;
   // ensure handlers exist
-  onConnectorsClick = onConnectorsClick ?? noop;
   onPipelinesClick = onPipelinesClick ?? noop;
-  onScheduleClick = onScheduleClick ?? noop;
-  onJobHistoryClick = onJobHistoryClick ?? noop;
-  onVersioningClick = onVersioningClick ?? noop;
-  onLineageClick = onLineageClick ?? noop;
   onValidationClick = onValidationClick ?? noop;
   onMonitoringClick = onMonitoringClick ?? noop;
   onPermissionsClick = onPermissionsClick ?? noop;
   onCollaborationClick = onCollaborationClick ?? noop;
-  onIntegrationsClick = onIntegrationsClick ?? noop;
-  onTemplatesClick = onTemplatesClick ?? noop;
-  onComplianceClick = onComplianceClick ?? noop;
-  onObservabilityClick = onObservabilityClick ?? noop;
   onExportClick = onExportClick ?? noop;
 
+  // text preprocessing handlers
+  onImportTextDataClick = onImportTextDataClick ?? noop;
+  onLabelEncodingClick = onLabelEncodingClick ?? noop;
+  onFeatureExtractionClick = onFeatureExtractionClick ?? noop;
+  onTextNormalizationClick = onTextNormalizationClick ?? noop;
+  onTextPreprocessingClick = onTextPreprocessingClick ?? noop;
+  onTokenizationClick = onTokenizationClick ?? noop;
+  onRemoveHTMLClick = onRemoveHTMLClick ?? noop;
+  onRemoveURLsClick = onRemoveURLsClick ?? noop;
+  onRemoveSpecialCharsClick = onRemoveSpecialCharsClick ?? noop;
+  onNormalizeCaseClick = onNormalizeCaseClick ?? noop;
+  onRemoveWhitespaceClick = onRemoveWhitespaceClick ?? noop;
+  onWordTokenizeClick = onWordTokenizeClick ?? noop;
+  onSentenceTokenizeClick = onSentenceTokenizeClick ?? noop;
+  onNGramClick = onNGramClick ?? noop;
+  onRemoveStopWordsClick = onRemoveStopWordsClick ?? noop;
+  onMinWordLengthClick = onMinWordLengthClick ?? noop;
+  onStemmingClick = onStemmingClick ?? noop;
+  onLemmatizationClick = onLemmatizationClick ?? noop;
+  onSpellCorrectionClick = onSpellCorrectionClick ?? noop;
+  onTFIDFClick = onTFIDFClick ?? noop;
+  onBagOfWordsClick = onBagOfWordsClick ?? noop;
+  onWordEmbeddingsClick = onWordEmbeddingsClick ?? noop;
+  onLanguageDetectionClick = onLanguageDetectionClick ?? noop;
+  onTranslationClick = onTranslationClick ?? noop;
+  onEncodingNormalizationClick = onEncodingNormalizationClick ?? noop;
+  onWordFrequencyClick = onWordFrequencyClick ?? noop;
+  onTextStatsClick = onTextStatsClick ?? noop;
+  onSentimentAnalysisClick = onSentimentAnalysisClick ?? noop;
+
+  const hasStructuredData = dataKind === "structured";
+  const hasUnstructuredData = dataKind === "unstructured";
+
+  // State: Sidebar open/close sections
   const [openSections, setOpenSections] = useState({
     importData: true,
     exploreData: true,
@@ -158,33 +253,37 @@ export function LeftSidebar({
     engineerFeatures: true,
     aiSuggestions: true,
     saveExport: true,
-    connectors: false,
+
     pipelines: false,
-    scheduling: false,
-    lineage: false,
-    versioning: false,
     validation: false,
     monitoring: false,
     accessControl: false,
     collaboration: false,
-    integrations: false,
-    templates: false,
-    compliance: false,
-    observability: false,
     exportDelivery: false,
-  });
-  const [collapsed, setCollapsed] = useState(false);
 
+    // Text Preprocessing main section
+    textPreprocessing: false,
+
+    // Text Preprocessing subtabs
+    basicCleaning: false,
+    tokenization: false,
+    filtering: false,
+    normalization: false,
+    featureExtraction: false,
+    languageEncoding: false,
+  });
+
+  // Fixed-width sidebar layout
+  const collapsed = false;
+
+  // Toggle any collapsible section
   const toggleSection = (section: keyof typeof openSections) => {
     if (disabled) return;
+
     setOpenSections((prev) => ({
       ...prev,
       [section]: !prev[section],
     }));
-  };
-
-  const handleHamburgerClick = () => {
-    setCollapsed((prev) => !prev);
   };
 
   const iconColors = {
@@ -197,64 +296,43 @@ export function LeftSidebar({
     aiSuggestions: "text-indigo-400",
     saveExport: "text-pink-400",
     settings: "text-gray-400",
-    hamburger: "text-gray-300",
-    connectors: "text-cyan-400",
     pipelines: "text-violet-400",
-    scheduling: "text-amber-400",
-    versioning: "text-slate-300",
-    lineage: "text-rose-400",
     validation: "text-lime-400",
     monitoring: "text-red-300",
     permissions: "text-emerald-300",
     collaboration: "text-fuchsia-400",
-    integrations: "text-blue-300",
-    templates: "text-amber-300",
-    compliance: "text-pink-300",
-    observability: "text-sky-300",
     export: "text-indigo-300",
+    textPreprocessing: "text-orange-400",
   };
 
   return (
     <aside
-      className={`flex flex-col overflow-y-auto border-r border-[#2a2a2a] bg-[#000000] transition-[width] duration-200 ${
-        collapsed ? "w-16" : "w-72"
-      }`}
+      className="left-sidebar-pro flex h-full w-full flex-col overflow-hidden bg-gradient-to-b from-[#060606] via-[#050505] to-[#040404]"
       aria-label="Left sidebar"
     >
       {/* Header */}
-      <div className="pt-4 p-2 border-b border-[#2a2a2a] flex items-center justify-between">
-        <button
-          onClick={handleHamburgerClick}
-          disabled={disabled}
-          title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-          className={`flex items-center justify-center p-1 rounded-md transition-colors ${
-            disabled ? "opacity-50 cursor-not-allowed" : "hover:bg-[#1e1e1e]"
-          }`}
-          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className={`h-5 w-5 ${iconColors.hamburger}`}
-            aria-hidden
-          >
-            <line x1="4" x2="20" y1="12" y2="12"></line>
-            <line x1="4" x2="20" y1="6" y2="6"></line>
-            <line x1="4" x2="20" y1="18" y2="18"></line>
-          </svg>
-        </button>
-        {!collapsed && <span className="text-sm font-medium text-gray-400">Tools & Pipelines</span>}
+      <div className="pt-3 p-2.5 border-b border-[#1a1a1a] bg-[#0a0a0a]">
+        <div className="flex items-center justify-between">
+          <div className="inline-flex items-center gap-2 rounded-lg border border-[#1f2937] bg-[#0f172a]/40 px-2 py-1.5">
+            <span className="text-xs font-semibold text-slate-100">DATABits</span>
+          </div>
+          <span className="text-[10px] font-mono text-slate-400 bg-slate-900/60 px-1.5 py-0.5 rounded border border-slate-700/40">TOOLSET</span>
+        </div>
+        <div className="mt-2 text-[10px] uppercase tracking-[0.12em] text-slate-400">Preprocessing Controls</div>
+        <div className="mt-2 flex items-center gap-3 text-[10px] text-slate-500">
+          <span className="inline-flex items-center gap-1">
+            <span className="h-2 w-2 rounded-full bg-sky-400"></span>
+            Structured
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <span className="h-2 w-2 rounded-full bg-emerald-400"></span>
+            Unstructured
+          </span>
+        </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto">
-        <div className="p-2">
+      <ScrollArea className="flex-1">
+        <div className="p-2.5">
           {/* Import Data */}
           <CollapsibleSection
             title="Import Data"
@@ -271,13 +349,15 @@ export function LeftSidebar({
             collapsed={collapsed}
           >
             <button
-              className={`w-full text-left px-2 py-1 text-xs rounded-md transition-colors ${
-                disabled ? "opacity-50 cursor-not-allowed" : "hover:bg-[#1e1e1e]"
-              }`}
+              className={`w-full text-left px-2.5 py-1.5 text-xs rounded-md border border-transparent transition-colors text-slate-300 ${disabled ? "opacity-50 cursor-not-allowed" : "hover:bg-[#111827] hover:border-[#1f2937]"
+                }`}
               onClick={() => !disabled && document.getElementById("fileUpload")?.click()}
               disabled={disabled}
             >
-              Import CSV / Excel
+              <span className="inline-flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full bg-sky-400"></span>
+                Import CSV / Excel
+              </span>
             </button>
             <input
               type="file"
@@ -287,35 +367,27 @@ export function LeftSidebar({
               className="hidden"
               disabled={disabled}
             />
-            <button className={`w-full text-left px-2 py-1 text-xs rounded-md transition-colors ${disabled ? "opacity-50" : "hover:bg-[#1e1e1e]"}`} title="Connect a database (JDBC, Postgres, MySQL)" onClick={onConnectorsClick} disabled={disabled}>
-              Database connectors
+            <button className={`w-full text-left px-2.5 py-1.5 text-xs rounded-md border border-transparent transition-colors text-slate-300 ${disabled ? "opacity-50" : "hover:bg-[#111827] hover:border-[#1f2937]"}`} title="Connect a database (JDBC, Postgres, MySQL)" onClick={onDatabaseConnectorsClick} disabled={disabled}>
+              <span className="inline-flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full bg-sky-400"></span>
+                Database connectors
+              </span>
             </button>
-            <button className={`w-full text-left px-2 py-1 text-xs rounded-md transition-colors ${disabled ? "opacity-50" : "hover:bg-[#1e1e1e]"}`} onClick={() => window.alert("S3 / GCS connectors - configure in Integrations")} disabled={disabled}>
-              Cloud storage connectors
+            <button className={`w-full text-left px-2.5 py-1.5 text-xs rounded-md border border-transparent transition-colors text-slate-300 ${disabled ? "opacity-50" : "hover:bg-[#111827] hover:border-[#1f2937]"}`} onClick={() => window.alert("S3 / GCS connectors - configure in Integrations")} disabled={disabled}>
+              <span className="inline-flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full bg-sky-400"></span>
+                Cloud storage connectors
+              </span>
             </button>
-          </CollapsibleSection>
-
-          {/* Connectors (more detailed) */}
-          <CollapsibleSection
-            title="Connectors & Sources"
-            icon={
-              <svg className={`h-4 w-4 ${iconColors.connectors}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M3 12h6" />
-                <path d="M15 12h6" />
-                <path d="M12 3v6" />
-                <path d="M12 15v6" />
-              </svg>
-            }
-            isOpen={openSections.connectors}
-            onToggle={() => toggleSection("connectors")}
-            disabled={disabled}
-            collapsed={collapsed}
-          >
-            <button className={`w-full text-left px-2 py-1 text-xs rounded-md ${disabled ? "opacity-50" : "hover:bg-[#1e1e1e]"}`} onClick={onConnectorsClick} disabled={disabled}>
-              Configure connectors
-            </button>
-            <button className={`w-full text-left px-2 py-1 text-xs rounded-md ${disabled ? "opacity-50" : "hover:bg-[#1e1e1e]"}`} onClick={() => alert("Test connection")} disabled={disabled}>
-              Test & health checks
+            <button
+              className={`w-full text-left px-2.5 py-1.5 text-xs rounded-md border border-transparent transition-colors text-slate-300 ${disabled ? "opacity-50" : "hover:bg-[#111827] hover:border-[#1f2937]"}`}
+              onClick={onImportTextDataClick}
+              disabled={disabled}
+            >
+              <span className="inline-flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full bg-emerald-400"></span>
+                Import unstructured data
+              </span>
             </button>
           </CollapsibleSection>
 
@@ -334,17 +406,23 @@ export function LeftSidebar({
             disabled={disabled}
             collapsed={collapsed}
           >
-            <button className={`w-full text-left px-2 py-1 text-xs rounded-md ${disabled ? "opacity-50" : "hover:bg-[#1e1e1e]"}`} onClick={onDataSummaryClick} disabled={disabled}>
-              Data Summary
+            <button className={`w-full text-left px-2 py-1 text-xs rounded-md ${disabled || !hasStructuredData ? "opacity-50 cursor-not-allowed" : "hover:bg-[#1e1e1e]"}`} onClick={onDataSummaryClick} disabled={disabled || !hasStructuredData}>
+              <span className="inline-flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full bg-sky-400"></span>
+                Data Summary
+              </span>
             </button>
-            <button className={`w-full text-left px-2 py-1 text-xs rounded-md ${disabled ? "opacity-50" : "hover:bg-[#1e1e1e]"}`} onClick={onVisualizationClick} disabled={disabled}>
-              Visualize & charts
+            <button className={`w-full text-left px-2 py-1 text-xs rounded-md ${disabled || !hasStructuredData ? "opacity-50 cursor-not-allowed" : "hover:bg-[#1e1e1e]"}`} onClick={onVisualizationClick} disabled={disabled || !hasStructuredData}>
+              <span className="inline-flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full bg-sky-400"></span>
+                Visualize & charts
+              </span>
             </button>
-            <button className={`w-full text-left px-2 py-1 text-xs rounded-md ${disabled ? "opacity-50" : "hover:bg-[#1e1e1e]"}`} onClick={onCorrelationAnalysisClick} disabled={disabled}>
-              Correlation analysis
-            </button>
-            <button className={`w-full text-left px-2 py-1 text-xs rounded-md ${disabled ? "opacity-50" : "hover:bg-[#1e1e1e]"}`} onClick={onObservabilityClick} disabled={disabled}>
-              Observability metrics
+            <button className={`w-full text-left px-2 py-1 text-xs rounded-md ${disabled || !hasStructuredData ? "opacity-50 cursor-not-allowed" : "hover:bg-[#1e1e1e]"}`} onClick={onCorrelationAnalysisClick} disabled={disabled || !hasStructuredData}>
+              <span className="inline-flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full bg-sky-400"></span>
+                Correlation analysis
+              </span>
             </button>
           </CollapsibleSection>
 
@@ -366,80 +444,8 @@ export function LeftSidebar({
             <button className={`w-full text-left px-2 py-1 text-xs rounded-md ${disabled ? "opacity-50" : "hover:bg-[#1e1e1e]"}`} onClick={onPipelinesClick} disabled={disabled}>
               Open pipelines editor
             </button>
-            <button className={`w-full text-left px-2 py-1 text-xs rounded-md ${disabled ? "opacity-50" : "hover:bg-[#1e1e1e]"}`} onClick={onTemplatesClick} disabled={disabled}>
-              Templates & marketplace
-            </button>
             <button className={`w-full text-left px-2 py-1 text-xs rounded-md ${disabled ? "opacity-50" : "hover:bg-[#1e1e1e]"}`} onClick={() => alert("Clone pipeline")} disabled={disabled}>
               Clone pipeline
-            </button>
-          </CollapsibleSection>
-
-          {/* Scheduling */}
-          <CollapsibleSection
-            title="Scheduling & Jobs"
-            icon={
-              <svg className={`h-4 w-4 ${iconColors.scheduling}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <circle cx="12" cy="12" r="9" />
-                <path d="M12 7v5l3 3" />
-              </svg>
-            }
-            isOpen={openSections.scheduling}
-            onToggle={() => toggleSection("scheduling")}
-            disabled={disabled}
-            collapsed={collapsed}
-          >
-            <button className={`w-full text-left px-2 py-1 text-xs rounded-md ${disabled ? "opacity-50" : "hover:bg-[#1e1e1e]"}`} onClick={onScheduleClick} disabled={disabled}>
-              Schedule pipeline
-            </button>
-            <button className={`w-full text-left px-2 py-1 text-xs rounded-md ${disabled ? "opacity-50" : "hover:bg-[#1e1e1e]"}`} onClick={onJobHistoryClick} disabled={disabled}>
-              Job history & retries
-            </button>
-          </CollapsibleSection>
-
-          {/* Versioning / Snapshots */}
-          <CollapsibleSection
-            title="Versioning & Snapshots"
-            icon={
-              <svg className={`h-4 w-4 ${iconColors.versioning}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M12 2v20" />
-                <path d="M5 6h14" />
-                <path d="M5 18h14" />
-              </svg>
-            }
-            isOpen={openSections.versioning}
-            onToggle={() => toggleSection("versioning")}
-            disabled={disabled}
-            collapsed={collapsed}
-          >
-            <button className={`w-full text-left px-2 py-1 text-xs rounded-md ${disabled ? "opacity-50" : "hover:bg-[#1e1e1e]"}`} onClick={onVersioningClick} disabled={disabled}>
-              Snapshot & rollback
-            </button>
-            <button className={`w-full text-left px-2 py-1 text-xs rounded-md ${disabled ? "opacity-50" : "hover:bg-[#1e1e1e]"}`} onClick={() => alert("Diff view")} disabled={disabled}>
-              Compare versions
-            </button>
-          </CollapsibleSection>
-
-          {/* Lineage */}
-          <CollapsibleSection
-            title="Data Lineage"
-            icon={
-              <svg className={`h-4 w-4 ${iconColors.lineage}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M3 12h6" />
-                <path d="M15 12h6" />
-                <path d="M12 3v6" />
-                <path d="M12 15v6" />
-              </svg>
-            }
-            isOpen={openSections.lineage}
-            onToggle={() => toggleSection("lineage")}
-            disabled={disabled}
-            collapsed={collapsed}
-          >
-            <button className={`w-full text-left px-2 py-1 text-xs rounded-md ${disabled ? "opacity-50" : "hover:bg-[#1e1e1e]"}`} onClick={onLineageClick} disabled={disabled}>
-              View lineage graph
-            </button>
-            <button className={`w-full text-left px-2 py-1 text-xs rounded-md ${disabled ? "opacity-50" : "hover:bg-[#1e1e1e]"}`} onClick={() => alert("Export lineage report")} disabled={disabled}>
-              Export lineage
             </button>
           </CollapsibleSection>
 
@@ -457,7 +463,7 @@ export function LeftSidebar({
             disabled={disabled}
             collapsed={collapsed}
           >
-            <button className={`w-full text-left px-2 py-1 text-xs rounded-md ${disabled ? "opacity-50" : "hover:bg-[#1e1e1e]"}`} onClick={onValidationClick} disabled={disabled}>
+            <button className={`w-full text-left px-2 py-1 text-xs rounded-md ${disabled || !hasStructuredData ? "opacity-50 cursor-not-allowed" : "hover:bg-[#1e1e1e]"}`} onClick={onValidationClick} disabled={disabled || !hasStructuredData}>
               Create validation rules
             </button>
             <button className={`w-full text-left px-2 py-1 text-xs rounded-md ${disabled ? "opacity-50" : "hover:bg-[#1e1e1e]"}`} onClick={() => alert("Run test suite")} disabled={disabled}>
@@ -478,22 +484,128 @@ export function LeftSidebar({
             disabled={disabled}
             collapsed={collapsed}
           >
-            <button className={`w-full text-left px-2 py-1 text-xs rounded-md ${disabled ? "opacity-50" : "hover:bg-[#1e1e1e]"}`} onClick={onMissingValuesClick} disabled={disabled}>
-              Advanced imputation
+            <button className={`w-full text-left px-2 py-1 text-xs rounded-md ${disabled || !hasStructuredData ? "opacity-50 cursor-not-allowed" : "hover:bg-[#1e1e1e]"}`} onClick={onAdvancedImputationClick} disabled={disabled || !hasStructuredData}>
+              <span className="inline-flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full bg-sky-400"></span>
+                Advanced imputation
+              </span>
             </button>
-            <button className={`w-full text-left px-2 py-1 text-xs rounded-md ${disabled ? "opacity-50" : "hover:bg-[#1e1e1e]"}`} onClick={handleImputeMissingValues} disabled={disabled}>
-              Quick impute (mean)
+            <button className={`w-full text-left px-2 py-1 text-xs rounded-md ${disabled || !hasStructuredData ? "opacity-50 cursor-not-allowed" : "hover:bg-[#1e1e1e]"}`} onClick={onQuickImputeClick} disabled={disabled || !hasStructuredData}>
+              <span className="inline-flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full bg-sky-400"></span>
+                Quick impute
+              </span>
             </button>
+          </CollapsibleSection>
+
+          {/* Text Preprocessing for Unstructured Data */}
+          <CollapsibleSection
+            title="Text Preprocessing"
+            icon={
+              <svg className={`h-4 w-4 ${iconColors.textPreprocessing}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M4 7h16" />
+                <path d="M4 12h10" />
+                <path d="M4 17h14" />
+              </svg>
+            }
+            isOpen={openSections.textPreprocessing}
+            onToggle={() => toggleSection("textPreprocessing")}
+            disabled={disabled}
+            collapsed={collapsed}
+          >
+            {/* Subtab 1: Basic Text Cleaning */}
+            <button
+              className={`w-full text-left px-2 py-1 text-xs rounded-md ${disabled || !hasUnstructuredData ? "opacity-50 cursor-not-allowed" : "hover:bg-[#1e1e1e]"}`}
+              onClick={onBasicCleaningClick}
+              disabled={disabled || !hasUnstructuredData}
+            >
+              <span className="inline-flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full bg-emerald-400"></span>
+                Basic Cleaning
+              </span>
+            </button>
+
+            {/* Subtab 2: Tokenization */}
+            <button
+              className={`w-full text-left px-2 py-1 text-xs rounded-md ${disabled || !hasUnstructuredData ? "opacity-50 cursor-not-allowed" : "hover:bg-[#1e1e1e]"}`}
+              onClick={onTokenizationClick}
+              disabled={disabled || !hasUnstructuredData}
+            >
+              <span className="inline-flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full bg-emerald-400"></span>
+                Tokenization
+              </span>
+            </button>
+
+            {/* Subtab 3: Filtering */}
+            <button
+              className={`w-full text-left px-2 py-1 text-xs rounded-md ${disabled || !hasUnstructuredData ? "opacity-50 cursor-not-allowed" : "hover:bg-[#1e1e1e]"}`}
+              onClick={onRemoveStopWordsClick}
+              disabled={disabled || !hasUnstructuredData}
+            >
+              <span className="inline-flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full bg-emerald-400"></span>
+                Filtering
+              </span>
+            </button>
+
+
+            {/* Subtab 4: Normalization */}
+            <button
+              className={`w-full text-left px-2 py-1 text-xs rounded-md ${disabled || !hasUnstructuredData ? "opacity-50 cursor-not-allowed" : "hover:bg-[#1e1e1e]"}`}
+              onClick={onTextNormalizationClick}
+              disabled={disabled || !hasUnstructuredData}
+            >
+              <span className="inline-flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full bg-emerald-400"></span>
+                Normalization
+              </span>
+            </button>
+
+            {/* Subtab 6: Feature Extraction */}
+            <div className="mb-1">
+              <button
+                onClick={() => {
+                  onFeatureExtractionClick?.();
+                  setOpenSections((prev) => ({
+                    ...prev,
+                    textPreprocessing: false, // 🔥 IMPORTANT
+                  }));
+                }}
+                className={`w-full text-left px-2 py-1 text-xs rounded-md transition-colors ${disabled || !hasUnstructuredData ? "opacity-50 cursor-not-allowed" : "hover:bg-[#1e1e1e]"}`}
+                disabled={disabled || !hasUnstructuredData}
+              >
+                <span className="inline-flex items-center gap-2">
+                  <span className="h-2 w-2 rounded-full bg-emerald-400"></span>
+                  Feature Extraction
+                </span>
+              </button>
+            </div>
+
+            {/* Subtab 7: Label & Encoding */}
+            <div className="mb-1">
+              <button
+                onClick={onLabelEncodingClick}
+                className={`w-full text-left px-2 py-1 text-xs rounded-md transition-colors ${disabled || !hasUnstructuredData ? "opacity-50 cursor-not-allowed" : "hover:bg-[#1e1e1e]"}`}
+                disabled={disabled || !hasUnstructuredData}
+              >
+                <span className="inline-flex items-center gap-2">
+                  <span className="h-2 w-2 rounded-full bg-emerald-400"></span>
+                  Label & Encoding
+                </span>
+              </button>
+            </div>
+
+
           </CollapsibleSection>
 
           {/* Normalization */}
           <div className={collapsed ? "flex justify-center mb-1" : ""}>
             <button
-              className={`w-full flex items-center ${collapsed ? "justify-center" : "justify-start"} px-2 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                disabled ? "opacity-50 cursor-not-allowed" : "hover:bg-[#1e1e1e]"
-              }`}
+              className={`w-full flex items-center ${collapsed ? "justify-center" : "justify-start"} px-2 py-1.5 text-sm font-medium rounded-md transition-colors ${disabled || !hasStructuredData ? "opacity-50 cursor-not-allowed" : "hover:bg-[#1e1e1e]"
+                }`}
               onClick={onNormalizationClick ?? noop}
-              disabled={disabled}
+              disabled={disabled || !hasStructuredData}
               title={collapsed ? "Normalize, encode, scale" : undefined}
             >
               <svg className={`h-4 w-4 ${iconColors.normalization}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -501,23 +613,33 @@ export function LeftSidebar({
                 <path d="M7 12h10" />
                 <path d="M12 17V7" />
               </svg>
-              {!collapsed && <span className="ml-2">Normalize & encode</span>}
+              {!collapsed && (
+                <span className="ml-2 inline-flex items-center gap-2">
+                  <span className="h-2 w-2 rounded-full bg-sky-400"></span>
+                  Normalize & encode
+                </span>
+              )}
             </button>
           </div>
 
           {/* Outliers */}
           <div className={collapsed ? "flex justify-center mb-1" : ""}>
             <button
-              className={`w-full flex items-center ${collapsed ? "justify-center" : "justify-start"} px-2 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                disabled ? "opacity-50 cursor-not-allowed" : "hover:bg-[#1e1e1e]"
-              }`}
-              disabled={disabled}
+              className={`w-full flex items-center ${collapsed ? "justify-center" : "justify-start"} px-2 py-1.5 text-sm font-medium rounded-md transition-colors ${disabled || !hasStructuredData ? "opacity-50 cursor-not-allowed" : "hover:bg-[#1e1e1e]"
+                }`}
+              onClick={onOutliersClick}
+              disabled={disabled || !hasStructuredData}
               title={collapsed ? "Remove outliers" : undefined}
             >
               <svg className={`h-4 w-4 ${iconColors.outliers}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z" />
               </svg>
-              {!collapsed && <span className="ml-2">Remove outliers</span>}
+              {!collapsed && (
+                <span className="ml-2 inline-flex items-center gap-2">
+                  <span className="h-2 w-2 rounded-full bg-sky-400"></span>
+                  Remove outliers
+                </span>
+              )}
             </button>
           </div>
 
@@ -591,98 +713,6 @@ export function LeftSidebar({
             </button>
           </CollapsibleSection>
 
-          {/* Integrations */}
-          <CollapsibleSection
-            title="Integrations"
-            icon={
-              <svg className={`h-4 w-4 ${iconColors.integrations}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M12 2v6" />
-                <path d="M12 16v6" />
-                <path d="M4 8l8 8" />
-                <path d="M20 8l-8 8" />
-              </svg>
-            }
-            isOpen={openSections.integrations}
-            onToggle={() => toggleSection("integrations")}
-            disabled={disabled}
-            collapsed={collapsed}
-          >
-            <button className={`w-full text-left px-2 py-1 text-xs rounded-md ${disabled ? "opacity-50" : "hover:bg-[#1e1e1e]"}`} onClick={onIntegrationsClick} disabled={disabled}>
-              Connectors & streaming (Kafka, Kinesis)
-            </button>
-            <button className={`w-full text-left px-2 py-1 text-xs rounded-md ${disabled ? "opacity-50" : "hover:bg-[#1e1e1e]"}`} onClick={() => alert("Airflow / orchestration webhooks")} disabled={disabled}>
-              Orchestration (Airflow)
-            </button>
-          </CollapsibleSection>
-
-          {/* Templates & Marketplace */}
-          <CollapsibleSection
-            title="Templates & Marketplace"
-            icon={
-              <svg className={`h-4 w-4 ${iconColors.templates}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <rect x="3" y="3" width="7" height="7" />
-                <rect x="14" y="3" width="7" height="7" />
-                <rect x="14" y="14" width="7" height="7" />
-                <rect x="3" y="14" width="7" height="7" />
-              </svg>
-            }
-            isOpen={openSections.templates}
-            onToggle={() => toggleSection("templates")}
-            disabled={disabled}
-            collapsed={collapsed}
-          >
-            <button className={`w-full text-left px-2 py-1 text-xs rounded-md ${disabled ? "opacity-50" : "hover:bg-[#1e1e1e]"}`} onClick={onTemplatesClick} disabled={disabled}>
-              Browse templates
-            </button>
-            <button className={`w-full text-left px-2 py-1 text-xs rounded-md ${disabled ? "opacity-50" : "hover:bg-[#1e1e1e]"}`} onClick={() => alert("Submit template")} disabled={disabled}>
-              Publish template
-            </button>
-          </CollapsibleSection>
-
-          {/* Compliance & Security */}
-          <CollapsibleSection
-            title="Compliance & Security"
-            icon={
-              <svg className={`h-4 w-4 ${iconColors.compliance}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M12 2l3 7h7l-5.5 4 2 7L12 16l-6.5 4 2-7L2 9h7z" />
-              </svg>
-            }
-            isOpen={openSections.compliance}
-            onToggle={() => toggleSection("compliance")}
-            disabled={disabled}
-            collapsed={collapsed}
-          >
-            <button className={`w-full text-left px-2 py-1 text-xs rounded-md ${disabled ? "opacity-50" : "hover:bg-[#1e1e1e]"}`} onClick={onComplianceClick} disabled={disabled}>
-              Encryption & audit logs
-            </button>
-            <button className={`w-full text-left px-2 py-1 text-xs rounded-md ${disabled ? "opacity-50" : "hover:bg-[#1e1e1e]"}`} onClick={() => alert("Export compliance report")} disabled={disabled}>
-              Compliance reports
-            </button>
-          </CollapsibleSection>
-
-          {/* Observability */}
-          <CollapsibleSection
-            title="Observability & Metrics"
-            icon={
-              <svg className={`h-4 w-4 ${iconColors.observability}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M4 6h16" />
-                <path d="M4 12h10" />
-                <path d="M4 18h7" />
-              </svg>
-            }
-            isOpen={openSections.observability}
-            onToggle={() => toggleSection("observability")}
-            disabled={disabled}
-            collapsed={collapsed}
-          >
-            <button className={`w-full text-left px-2 py-1 text-xs rounded-md ${disabled ? "opacity-50" : "hover:bg-[#1e1e1e]"}`} onClick={onObservabilityClick} disabled={disabled}>
-              Metrics & dashboards
-            </button>
-            <button className={`w-full text-left px-2 py-1 text-xs rounded-md ${disabled ? "opacity-50" : "hover:bg-[#1e1e1e]"}`} onClick={() => alert("Prometheus / Grafana links")} disabled={disabled}>
-              External monitoring
-            </button>
-          </CollapsibleSection>
-
           {/* Save & Export */}
           <CollapsibleSection
             title="Save & Export"
@@ -698,10 +728,10 @@ export function LeftSidebar({
             disabled={disabled}
             collapsed={collapsed}
           >
-            <button className={`w-full text-left px-2 py-1 text-xs rounded-md ${disabled ? "opacity-50" : "hover:bg-[#1e1e1e]"}`} onClick={() => alert("Save project")} disabled={disabled}>
+            <button className={`w-full text-left px-2 py-1 text-xs rounded-md ${disabled ? "opacity-50" : "hover:bg-[#1e1e1e]"}`} onClick={onSaveProjectClick} disabled={disabled}>
               Save project
             </button>
-            <button className={`w-full text-left px-2 py-1 text-xs rounded-md ${disabled ? "opacity-50" : "hover:bg-[#1e1e1e]"}`} onClick={onExportClick} disabled={disabled}>
+            <button className={`w-full text-left px-2 py-1 text-xs rounded-md ${disabled || !hasStructuredData ? "opacity-50 cursor-not-allowed" : "hover:bg-[#1e1e1e]"}`} onClick={onExportClick} disabled={disabled || !hasStructuredData}>
               Export CSV / Parquet
             </button>
             <button className={`w-full text-left px-2 py-1 text-xs rounded-md ${disabled ? "opacity-50" : "hover:bg-[#1e1e1e]"}`} onClick={() => alert("Deliver to warehouse")} disabled={disabled}>
@@ -709,14 +739,13 @@ export function LeftSidebar({
             </button>
           </CollapsibleSection>
         </div>
-      </div>
+      </ScrollArea>
 
       {/* Footer: settings */}
-      <div className="p-2 mt-auto border-t border-[#2a2a2a]">
+      <div className="p-2.5 mt-auto border-t border-[#1a1a1a] bg-[#0a0a0a]">
         <button
-          className={`w-full flex items-center justify-center px-2 py-1 text-xs rounded-md transition-colors ${
-            disabled ? "opacity-50 cursor-not-allowed" : "hover:bg-[#1e1e1e]"
-          }`}
+          className={`w-full flex items-center justify-center px-2 py-2 text-xs rounded-md border border-transparent transition-colors ${disabled ? "opacity-50 cursor-not-allowed" : "hover:bg-[#111827] hover:border-[#1f2937]"
+            }`}
           disabled={disabled}
           title={collapsed ? "Settings" : undefined}
         >

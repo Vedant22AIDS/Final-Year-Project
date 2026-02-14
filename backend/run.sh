@@ -3,5 +3,5 @@
 # Install Python dependencies
 pip install -r requirements.txt
 
-# Run Flask application
+# Run FastAPI application
 python app.py

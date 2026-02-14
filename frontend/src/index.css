@@ -23,3 +23,57 @@ a {
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Scoped modern dark scrollbar used by ScrollArea component */
+.db-scrollarea-viewport {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.45) transparent;
+}
+
+.db-scrollarea-viewport::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.db-scrollarea-viewport::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.db-scrollarea-viewport::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(100, 116, 139, 0.55), rgba(71, 85, 105, 0.55));
+  border: 2px solid transparent;
+  border-radius: 9999px;
+  background-clip: content-box;
+}
+
+.db-scrollarea-viewport::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, rgba(125, 211, 252, 0.75), rgba(96, 165, 250, 0.75));
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+.db-scrollarea-viewport::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Left sidebar professional dark styling */
+.left-sidebar-pro .ls-section-body button {
+  width: 100%;
+  text-align: left;
+  border: 1px solid transparent;
+  border-radius: 0.5rem;
+  color: #cbd5e1;
+  background: transparent;
+  transition: all 160ms ease;
+}
+
+.left-sidebar-pro .ls-section-body button:hover {
+  background: rgba(15, 23, 42, 0.45);
+  border-color: rgba(51, 65, 85, 0.6);
+  color: #e2e8f0;
+}
+
+.left-sidebar-pro .ls-section-body button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

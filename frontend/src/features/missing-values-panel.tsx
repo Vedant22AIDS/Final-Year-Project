@@ -15,17 +15,49 @@ interface MissingValuesPanelProps {
   onBack: () => void
   onApply: (strategy: string, columns: string[], fillValue?: string) => void
   disabled?: boolean
+  missingStats?: Record<string, number>
+  dtypes?: Record<string, string>
+  totalRows?: number
 }
 
-export function MissingValuesPanel({ data, onBack, onApply, disabled = false }: MissingValuesPanelProps) {
+export function MissingValuesPanel({
+  data,
+  onBack,
+  onApply,
+  disabled = false,
+  missingStats = {},
+  dtypes = {},
+  totalRows = 0,
+}: MissingValuesPanelProps) {
   const [strategy, setStrategy] = useState("mean")
   const [selectedColumns, setSelectedColumns] = useState<string[]>([])
   const [fillValue, setFillValue] = useState("")
   const [selectAll, setSelectAll] = useState(false)
 
   // Analyze columns for missing values
-  const columnAnalysis =
-    data.length > 0
+  const hasSummaryMissingStats = Object.keys(missingStats).length > 0
+  const effectiveTotalRows = totalRows > 0 ? totalRows : data.length
+
+  const columnAnalysis = hasSummaryMissingStats
+    ? Object.keys(missingStats)
+        .map((column) => {
+          const values = data.map((row) => row[column])
+          const inferredNumeric = values.some(
+            (val) => val !== null && val !== undefined && val !== "null" && !isNaN(Number(val)),
+          )
+          const dtype = String(dtypes[column] || "").toLowerCase()
+          const isNumericFromType = dtype.includes("int") || dtype.includes("float") || dtype.includes("double") || dtype.includes("number")
+          const missingCount = Number(missingStats[column] || 0)
+          return {
+            name: column,
+            missingCount,
+            missingPercentage: effectiveTotalRows > 0 ? (missingCount / effectiveTotalRows) * 100 : 0,
+            isNumeric: isNumericFromType || inferredNumeric,
+            totalRows: effectiveTotalRows,
+          }
+        })
+        .filter((col) => col.missingCount > 0)
+    : data.length > 0
       ? Object.keys(data[0])
           .map((column) => {
             const values = data.map((row) => row[column])

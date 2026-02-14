@@ -1,326 +1,3 @@
-// "use client"
-
-// import { useState, useCallback, useRef } from "react"
-
-// // Use environment variable from window for client-side code
-// const API_BASE_URL =
-//   typeof window !== "undefined"
-//     ? (window as any).NEXT_PUBLIC_API_URL || "http://localhost:5000/api"
-//     : "http://localhost:5000/api"
-
-// interface ApiResponse<T> {
-//   success: boolean
-//   data?: T
-//   message: string
-//   error?: string
-//   timestamp: string
-// }
-
-// interface ProcessingStatus {
-//   status: "idle" | "processing" | "completed" | "error"
-//   progress: number
-//   message: string
-// }
-
-// export function useApi() {
-//   const [loading, setLoading] = useState(false)
-//   const [error, setError] = useState<string | null>(null)
-//   const abortControllerRef = useRef<AbortController | null>(null)
-
-//   const apiCall = useCallback(async <T>(
-//     endpoint: string,
-//     options: RequestInit = {}
-//   ): Promise<T> => {
-//   // Cancel previous request if still pending
-//   if (abortControllerRef.current) {
-//     abortControllerRef.current.abort()
-//   }
-
-//   const controller = new AbortController()
-//   abortControllerRef.current = controller
-
-//   setLoading(true)
-//   setError(null)
-
-//   try {
-//     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-//         headers: {
-//           'Content-Type': 'application/json',
-//           ...options.headers,
-//         },
-//         signal: controller.signal,
-//         ...options,
-//       })
-
-//     if (!response.ok) {
-//       const errorData: ApiResponse<any> = await response.json()
-//       throw new Error(errorData.error || errorData.message || `HTTP error! status: ${response.status}`)
-//     }
-
-//     const result: ApiResponse<T> = await response.json()
-
-//     if (!result.success) {
-//       throw new Error(result.error || result.message || "Operation failed")
-//     }
-
-//     return result.data as T
-//   } catch (err) {
-//     if (err instanceof Error && err.name === "AbortError") {
-//       // Request was cancelled, don't set error
-//       throw err
-//     }
-
-//     const errorMessage = err instanceof Error ? err.message : "An unknown error occurred"
-//     setError(errorMessage)
-//     throw err
-//   } finally {
-//     setLoading(false)
-//     abortControllerRef.current = null
-//   }
-// }
-// , [])
-
-// // Polling for status updates
-// const pollStatus = useCallback(
-//   async (datasetId: string, onUpdate: (status: ProcessingStatus) => void): Promise<void> => {
-//     const poll = async () => {
-//       try {
-//         const status = await apiCall<ProcessingStatus>(`/dataset/${datasetId}/status`)
-//         onUpdate(status)
-
-//         if (status.status === "processing") {
-//           setTimeout(poll, 1000) // Poll every second
-//         }
-//       } catch (error) {
-//         console.error("Error polling status:", error)
-//       }
-//     }
-
-//     poll()
-//   },
-//   [apiCall],
-// )
-
-// // File upload with progress
-// const uploadFile = useCallback(
-//   async (file: File, onProgress?: (progress: number) => void) => {
-//     const formData = new FormData()
-//     formData.append("file", file)
-
-//     // Cancel previous request
-//     if (abortControllerRef.current) {
-//       abortControllerRef.current.abort()
-//     }
-
-//     const controller = new AbortController()
-//     abortControllerRef.current = controller
-
-//     setLoading(true)
-//     setError(null)
-
-//     try {
-//       const response = await fetch(`${API_BASE_URL}/upload`, {
-//         method: "POST",
-//         body: formData,
-//         signal: controller.signal,
-//       })
-
-//       if (!response.ok) {
-//         const errorData: ApiResponse<any> = await response.json()
-//         throw new Error(errorData.error || errorData.message || "Upload failed")
-//       }
-
-//       const result: ApiResponse<any> = await response.json()
-
-//       if (!result.success) {
-//         throw new Error(result.error || result.message || "Upload failed")
-//       }
-
-//       return result.data
-//     } catch (err) {
-//       if (err instanceof Error && err.name === "AbortError") {
-//         throw err
-//       }
-
-//       const errorMessage = err instanceof Error ? err.message : "Upload failed"
-//       setError(errorMessage)
-//       throw err
-//     } finally {
-//       setLoading(false)
-//       abortControllerRef.current = null
-//     }
-//   },
-//   [apiCall],
-// )
-
-// // Dataset operations with optional async processing
-// const getDatasetSummary = useCallback(
-//   async (datasetId: string) => {
-//     return apiCall(`/dataset/${datasetId}/summary`)
-//   },
-//   [apiCall],
-// )
-
-// const getDatasetPreview = useCallback(
-//   async (datasetId: string, page = 1, perPage = 10, type = "head") => {
-//     return apiCall(`/dataset/${datasetId}/preview?page=${page}&per_page=${perPage}&type=${type}`)
-//   },
-//   [apiCall],
-// )
-
-// const handleMissingValues = useCallback(
-//   async (datasetId: string, strategy: string, columns?: string[], asyncParam = false) => {
-//     return apiCall(`/dataset/${datasetId}/missing-values`, {
-//       method: "POST",
-//       body: JSON.stringify({ strategy, columns, async: asyncParam }),
-//     })
-//   },
-//   [apiCall],
-// )
-
-// // Add new methods for missing values and normalization
-// const handleMissingValuesAdvanced = useCallback(
-//   async (datasetId: string, strategy: string, columns?: string[], fillValue?: string) => {
-//     return apiCall(`/dataset/${datasetId}/missing-values`, {
-//       method: "POST",
-//       body: JSON.stringify({ strategy, columns, fill_value: fillValue }),
-//     })
-//   },
-//   [apiCall],
-// )
-
-// const normalizeData = useCallback(
-//   async (datasetId: string, method: string, columns?: string[], asyncParam = false) => {
-//     return apiCall(`/dataset/${datasetId}/normalize`, {
-//       method: "POST",
-//       body: JSON.stringify({ method, columns, async: asyncParam }),
-//     })
-//   },
-//   [apiCall],
-// )
-
-// const normalizeDataAdvanced = useCallback(
-//   async (datasetId: string, method: string, columns?: string[]) => {
-//     return apiCall(`/dataset/${datasetId}/normalize`, {
-//       method: "POST",
-//       body: JSON.stringify({ method, columns }),
-//     })
-//   },
-//   [apiCall],
-// )
-
-// const encodeCategorical = useCallback(
-//   async (datasetId: string, method: string, columns?: string[], asyncParam = false) => {
-//     return apiCall(`/dataset/${datasetId}/encode`, {
-//       method: "POST",
-//       body: JSON.stringify({ method, columns, async: asyncParam }),
-//     })
-//   },
-//   [apiCall],
-// )
-
-// const encodeCategoricalAdvanced = useCallback(
-//   async (datasetId: string, method: string, columns?: string[]) => {
-//     return apiCall(`/dataset/${datasetId}/encode`, {
-//       method: "POST",
-//       body: JSON.stringify({ method, columns }),
-//     })
-//   },
-//   [apiCall],
-// )
-
-// const removeOutliers = useCallback(
-//   async (datasetId: string, method: string, columns?: string[], threshold = 1.5, asyncParam = false) => {
-//     return apiCall(`/dataset/${datasetId}/outliers`, {
-//       method: "POST",
-//       body: JSON.stringify({ method, columns, threshold, async: asyncParam }),
-//     })
-//   },
-//   [apiCall],
-// )
-
-// const removeDuplicates = useCallback(
-//   async (datasetId: string) => {
-//     return apiCall(`/dataset/${datasetId}/duplicates`, {
-//       method: "DELETE",
-//     })
-//   },
-//   [apiCall],
-// )
-
-// const getCorrelationAnalysis = useCallback(
-//   async (datasetId: string) => {
-//     return apiCall(`/dataset/${datasetId}/correlation`)
-//   },
-//   [apiCall],
-// )
-
-// const exportDataset = useCallback(async (datasetId: string) => {
-//   const response = await fetch(`${API_BASE_URL}/dataset/${datasetId}/export`)
-//   if (!response.ok) {
-//     throw new Error("Export failed")
-//   }
-//   return response.blob()
-// }, [])
-
-// const resetDataset = useCallback(
-//   async (datasetId: string) => {
-//     return apiCall(`/dataset/${datasetId}/reset`, {
-//       method: "POST",
-//     })
-//   },
-//   [apiCall],
-// )
-
-// const getProcessingHistory = useCallback(
-//   async (datasetId: string) => {
-//     return apiCall(`/dataset/${datasetId}/history`)
-//   },
-//   [apiCall],
-// )
-
-// // Add refresh random sample method
-// const refreshRandomSample = useCallback(
-//   async (datasetId: string) => {
-//     return apiCall(`/dataset/${datasetId}/refresh-random`, {
-//       method: "POST",
-//     })
-//   },
-//   [apiCall],
-// )
-
-// const cancelRequest = useCallback(() => {
-//   if (abortControllerRef.current) {
-//     abortControllerRef.current.abort()
-//   }
-// }, [])
-
-// // Update the return statement to include new methods
-// return {
-//     loading,
-//     error,
-//     uploadFile,
-//     getDatasetSummary,
-//     getDatasetPreview,
-//     handleMissingValues,
-//     handleMissingValuesAdvanced,
-//     normalizeData,
-//     normalizeDataAdvanced,
-//     encodeCategorical,
-//     encodeCategoricalAdvanced,
-//     removeOutliers,
-//     removeDuplicates,
-//     getCorrelationAnalysis,
-//     exportDataset,
-//     resetDataset,
-//     getProcessingHistory,
-//     refreshRandomSample,
-//     pollStatus,
-//     cancelRequest,
-//   }
-// }
-
-// useApi.ts (client)
 "use client";
 
 import { useCallback, useRef, useState } from "react";
@@ -345,6 +22,36 @@ export interface ProcessingStatus {
   status: "idle" | "processing" | "completed" | "error";
   progress: number;
   message?: string;
+}
+
+export interface BasicCleaningResponse {
+  cleaned_text: string;
+  applied_operations: string[];
+  changes: Array<{
+    operation: string;
+    changed: boolean;
+    before_chars: number;
+    after_chars: number;
+  }>;
+  stats: {
+    original: {
+      char_count: number;
+      word_count: number;
+      line_count: number;
+    };
+    cleaned: {
+      char_count: number;
+      word_count: number;
+      line_count: number;
+    };
+  };
+}
+
+export interface TokenizationResponse {
+  token_type: "word" | "sentence" | "ngram";
+  n: number | null;
+  token_count: number;
+  tokens: string[];
 }
 
 /** Hook return type (partial, inferred by TS from implementation) */
@@ -542,6 +249,14 @@ export function useApi() {
       apiCall(`/dataset/${datasetId}/preview?page=${page}&per_page=${perPage}&type=${type}`),
     [apiCall]
   );
+  const runValidation = useCallback(
+    (datasetId: string, rules: any[]) =>
+      apiCall(`/validation/run/${datasetId}`, {
+        method: "POST",
+        body: JSON.stringify({ rules }),
+      }),
+    [apiCall]
+  );
 
   const handleMissingValues = useCallback(
     (datasetId: string, strategy: string, columns?: string[], asyncParam = false) =>
@@ -619,11 +334,33 @@ export function useApi() {
   const exportDataset = useCallback(async (datasetId: string) => {
     const resp = await fetch(`${API_BASE_URL}/dataset/${datasetId}/export`);
     if (!resp.ok) throw new Error("Export failed");
-    return resp.blob();
+    const disposition = resp.headers.get("content-disposition") || "";
+    const match = disposition.match(/filename="?([^"]+)"?/i);
+    const filename = match?.[1] || "";
+    const blob = await resp.blob();
+    return { blob, filename };
   }, []);
 
   const resetDataset = useCallback(
     (datasetId: string) => apiCall(`/dataset/${datasetId}/reset`, { method: "POST" }),
+    [apiCall]
+  );
+
+  const basicCleanText = useCallback(
+    (text: string, operations: string[]) =>
+      apiCall<BasicCleaningResponse>(`/text/basic-cleaning`, {
+        method: "POST",
+        body: JSON.stringify({ text, operations }),
+      }),
+    [apiCall]
+  );
+
+  const tokenizeText = useCallback(
+    (text: string, tokenType: "word" | "sentence" | "ngram", n = 2) =>
+      apiCall<TokenizationResponse>(`/text/tokenize`, {
+        method: "POST",
+        body: JSON.stringify({ text, token_type: tokenType, n }),
+      }),
     [apiCall]
   );
 
@@ -668,6 +405,9 @@ export function useApi() {
     resetDataset,
     getProcessingHistory,
     refreshRandomSample,
+    runValidation,
+    basicCleanText,
+    tokenizeText,
     pollStatus,
     cancelRequest,
   };

@@ -32,7 +32,7 @@ const MainApp = () => {
   }
 
   // Paths on which we do NOT want to show the Header
-  const hideHeaderPaths = ['/login']
+  const hideHeaderPaths = ['/login', '/EditorApp']
   // Paths on which we do NOT want to show the Footer
   const hideFooterPaths = ['/EditorApp']
 

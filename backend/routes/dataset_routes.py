@@ -1,82 +1,108 @@
-# routers/dataset.py
-from fastapi import APIRouter, UploadFile, File, Query, Request, Depends
-from fastapi.responses import StreamingResponse
-from typing import Optional
+from fastapi import APIRouter, File, Query, Request, UploadFile
 
 from controllers.dataset_controller import DatasetController
-from middleware.dataset import dataset_storage  # dataset_storage instance from your middleware/dataset.py
-from services.data_service import data_service  # used by controller static methods
 
-router = APIRouter(prefix="/api/datasets", tags=["dataset"])
-
-# Instantiate controller using storage objects
-controller = DatasetController(
-    datasets_storage=dataset_storage.datasets,
-    processing_status_storage=dataset_storage.processing_status,
-    dataset_lock=dataset_storage.lock,
-)
+router = APIRouter(prefix="/api", tags=["dataset"])
 
 
 @router.post("/upload")
 async def upload_file(file: UploadFile = File(...)):
-    """Upload dataset file"""
-    return await controller.upload_file(file)
+    return await DatasetController.upload_file(file)
 
 
-@router.get("/{dataset_id}/preview")
-async def get_preview(
-    dataset_id: str,
-    page: int = Query(1, ge=1),
-    per_page: int = Query(10, ge=1, le=50),
-    type: str = Query("head"),
-):
-    """Preview dataset (instance-level preview that uses stored datasets)"""
-    return await controller.get_preview(dataset_id=dataset_id, page=page, per_page=per_page, view_type=type)
-
-
-@router.get("/{dataset_id}/status")
+@router.get("/dataset/{dataset_id}/status")
 async def get_processing_status(dataset_id: str):
-    """Get processing status"""
-    # using static controller method that uses data_service
     return await DatasetController.get_processing_status(dataset_id)
 
 
-@router.get("/{dataset_id}/summary")
+@router.get("/dataset/{dataset_id}/summary")
 async def get_dataset_summary(dataset_id: str):
-    """Get dataset summary"""
     return await DatasetController.get_dataset_summary(dataset_id)
 
 
-@router.get("/{dataset_id}/preview-data")
+@router.get("/dataset/{dataset_id}/preview")
 async def get_dataset_preview(
     dataset_id: str,
     page: int = Query(1, ge=1),
     per_page: int = Query(10, ge=1, le=50),
     type: str = Query("head"),
+    refresh: bool = Query(False),
 ):
-    """Get dataset preview (via data_service helper)"""
-    return await DatasetController.get_dataset_preview(dataset_id, page=page, per_page=per_page, view_type=type)
+    return await DatasetController.get_dataset_preview(dataset_id, page, per_page, type, refresh)
 
 
-@router.post("/{dataset_id}/missing-values")
+@router.post("/dataset/{dataset_id}/refresh-random")
+async def refresh_random_sample(dataset_id: str):
+    return await DatasetController.refresh_random_sample(dataset_id)
+
+
+@router.post("/dataset/{dataset_id}/missing-values")
 async def handle_missing_values(dataset_id: str, request: Request):
-    """Handle missing values (body includes strategy, columns, fill_value)"""
-    return await DatasetController.handle_missing_values(dataset_id, request)
+    body = await request.json()
+    return await DatasetController.handle_missing_values(
+        dataset_id=dataset_id,
+        strategy=body.get("strategy", "mean"),
+        columns=body.get("columns"),
+        fill_value=body.get("fill_value"),
+        async_processing=bool(body.get("async", False)),
+    )
 
 
-@router.post("/{dataset_id}/normalize")
+@router.post("/dataset/{dataset_id}/normalize")
 async def normalize_data(dataset_id: str, request: Request):
-    """Normalize dataset"""
-    return await DatasetController.normalize_data(dataset_id, request)
+    body = await request.json()
+    return await DatasetController.normalize_data(
+        dataset_id=dataset_id,
+        method=body.get("method", "standard"),
+        columns=body.get("columns"),
+        async_processing=bool(body.get("async", False)),
+    )
 
 
-@router.post("/{dataset_id}/encode")
+@router.post("/dataset/{dataset_id}/encode")
 async def encode_categorical(dataset_id: str, request: Request):
-    """Encode categorical variables"""
-    return await DatasetController.encode_categorical(dataset_id, request)
+    body = await request.json()
+    return await DatasetController.encode_categorical(
+        dataset_id=dataset_id,
+        method=body.get("method", "label"),
+        columns=body.get("columns"),
+        async_processing=bool(body.get("async", False)),
+    )
 
 
-@router.get("/{dataset_id}/export")
+@router.post("/dataset/{dataset_id}/outliers")
+async def remove_outliers(dataset_id: str, request: Request):
+    body = await request.json()
+    return await DatasetController.remove_outliers(
+        dataset_id=dataset_id,
+        method=body.get("method", "iqr"),
+        columns=body.get("columns"),
+        threshold=float(body.get("threshold", 1.5)),
+        async_processing=bool(body.get("async", False)),
+    )
+
+
+@router.delete("/dataset/{dataset_id}/duplicates")
+async def remove_duplicates(dataset_id: str):
+    return await DatasetController.remove_duplicates(dataset_id)
+
+
+@router.get("/dataset/{dataset_id}/correlation")
+async def get_correlation_analysis(dataset_id: str):
+    return await DatasetController.get_correlation_analysis(dataset_id)
+
+
+@router.get("/dataset/{dataset_id}/export")
 async def export_dataset(dataset_id: str):
-    """Export processed dataset as CSV (streaming)"""
     return await DatasetController.export_dataset(dataset_id)
+
+
+@router.post("/dataset/{dataset_id}/reset")
+async def reset_dataset(dataset_id: str):
+    return await DatasetController.reset_dataset(dataset_id)
+
+
+@router.get("/dataset/{dataset_id}/history")
+async def get_processing_history(dataset_id: str):
+    return await DatasetController.get_processing_history(dataset_id)
+

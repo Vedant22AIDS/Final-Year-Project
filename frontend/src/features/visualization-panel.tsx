@@ -26,7 +26,17 @@ interface VisualizationConfig {
   analysisType: "univariate" | "bivariate" | "multivariate"
 }
 
-const VISUALIZATION_TYPES = {
+interface VisualizationTypeDefinition {
+  id: string
+  name: string
+  icon: any
+  description: string
+  requires: string[]
+  minFeatures: number
+  maxFeatures: number
+}
+
+const VISUALIZATION_TYPES: Record<"univariate" | "bivariate" | "multivariate", VisualizationTypeDefinition[]> = {
   univariate: [
     {
       id: "histogram",
@@ -34,6 +44,8 @@ const VISUALIZATION_TYPES = {
       icon: BarChart3,
       description: "Distribution of numerical data",
       requires: ["numerical"],
+      minFeatures: 1,
+      maxFeatures: 1,
     },
     {
       id: "boxplot",
@@ -41,6 +53,8 @@ const VISUALIZATION_TYPES = {
       icon: BarChart3,
       description: "Statistical summary with outliers",
       requires: ["numerical"],
+      minFeatures: 1,
+      maxFeatures: 1,
     },
     {
       id: "barplot",
@@ -48,6 +62,8 @@ const VISUALIZATION_TYPES = {
       icon: BarChart3,
       description: "Frequency of categorical data",
       requires: ["categorical"],
+      minFeatures: 1,
+      maxFeatures: 1,
     },
     {
       id: "pieplot",
@@ -55,6 +71,8 @@ const VISUALIZATION_TYPES = {
       icon: PieChart,
       description: "Proportions of categories",
       requires: ["categorical"],
+      minFeatures: 1,
+      maxFeatures: 1,
     },
     {
       id: "violin",
@@ -62,6 +80,8 @@ const VISUALIZATION_TYPES = {
       icon: TrendingUp,
       description: "Distribution shape and density",
       requires: ["numerical"],
+      minFeatures: 1,
+      maxFeatures: 1,
     },
   ],
   bivariate: [
@@ -71,6 +91,8 @@ const VISUALIZATION_TYPES = {
       icon: Scatter,
       description: "Relationship between two numerical variables",
       requires: ["numerical", "numerical"],
+      minFeatures: 2,
+      maxFeatures: 2,
     },
     {
       id: "line",
@@ -78,13 +100,17 @@ const VISUALIZATION_TYPES = {
       icon: TrendingUp,
       description: "Trend over time or ordered data",
       requires: ["numerical", "numerical"],
+      minFeatures: 2,
+      maxFeatures: 2,
     },
     {
       id: "heatmap",
       name: "Heatmap",
       icon: Grid3X3,
-      description: "Correlation or cross-tabulation",
-      requires: ["numerical", "numerical"],
+      description: "Correlation (numeric) or cross-tabulation (categorical)",
+      requires: ["numerical/categorical", "numerical/categorical"],
+      minFeatures: 2,
+      maxFeatures: 2,
     },
     {
       id: "boxplot_grouped",
@@ -92,6 +118,8 @@ const VISUALIZATION_TYPES = {
       icon: BarChart3,
       description: "Numerical distribution by category",
       requires: ["categorical", "numerical"],
+      minFeatures: 2,
+      maxFeatures: 2,
     },
     {
       id: "barplot_grouped",
@@ -99,6 +127,8 @@ const VISUALIZATION_TYPES = {
       icon: BarChart3,
       description: "Comparison across categories",
       requires: ["categorical", "categorical"],
+      minFeatures: 2,
+      maxFeatures: 2,
     },
   ],
   multivariate: [
@@ -108,6 +138,8 @@ const VISUALIZATION_TYPES = {
       icon: Grid3X3,
       description: "Relationships between multiple variables",
       requires: ["numerical"],
+      minFeatures: 3,
+      maxFeatures: 10,
     },
     {
       id: "parallel_coordinates",
@@ -115,6 +147,8 @@ const VISUALIZATION_TYPES = {
       icon: Layers,
       description: "Multi-dimensional patterns",
       requires: ["numerical"],
+      minFeatures: 3,
+      maxFeatures: 10,
     },
     {
       id: "pairplot",
@@ -122,6 +156,8 @@ const VISUALIZATION_TYPES = {
       icon: Scatter,
       description: "Pairwise relationships matrix",
       requires: ["numerical"],
+      minFeatures: 3,
+      maxFeatures: 6,
     },
     {
       id: "bubble",
@@ -129,6 +165,8 @@ const VISUALIZATION_TYPES = {
       icon: Scatter,
       description: "Three-dimensional relationships",
       requires: ["numerical", "numerical", "numerical"],
+      minFeatures: 3,
+      maxFeatures: 3,
     },
     {
       id: "radar",
@@ -136,6 +174,8 @@ const VISUALIZATION_TYPES = {
       icon: Grid3X3,
       description: "Multi-dimensional comparison",
       requires: ["numerical"],
+      minFeatures: 3,
+      maxFeatures: 8,
     },
   ],
 }
@@ -146,6 +186,7 @@ export function VisualizationPanel({ data, onVisualizationGenerate }: Visualizat
   const [selectedVisualization, setSelectedVisualization] = useState("")
   const [selectedFeatures, setSelectedFeatures] = useState<string[]>([])
   const [suggestions, setSuggestions] = useState<string[]>([])
+  const [compatibilityErrors, setCompatibilityErrors] = useState<string[]>([])
 
   // Analyze columns and detect types
   useEffect(() => {
@@ -159,14 +200,28 @@ export function VisualizationPanel({ data, onVisualizationGenerate }: Visualizat
       // Detect column type
       let type: "numerical" | "categorical" | "datetime" = "categorical"
 
-      // Check if numerical
-      const numericValues = values.filter((val) => !isNaN(Number(val)))
+      // Check if numerical (ignore empty strings and true date strings)
+      const numericValues = values.filter((val) => {
+        if (typeof val === "number") return Number.isFinite(val)
+        if (typeof val !== "string") return false
+        const trimmed = val.trim()
+        if (!trimmed) return false
+        if (/^\d{4}-\d{1,2}-\d{1,2}/.test(trimmed) || trimmed.includes("/") || trimmed.includes(":")) return false
+        return !isNaN(Number(trimmed))
+      })
       if (numericValues.length > values.length * 0.8) {
         type = "numerical"
       }
 
-      // Check if datetime
-      const dateValues = values.filter((val) => !isNaN(Date.parse(val)))
+      // Check if datetime (string-like date formats only)
+      const dateValues = values.filter((val) => {
+        if (val instanceof Date) return !isNaN(val.getTime())
+        if (typeof val !== "string") return false
+        const trimmed = val.trim()
+        if (!trimmed) return false
+        if (!/[-/:T]/.test(trimmed)) return false
+        return !isNaN(Date.parse(trimmed))
+      })
       if (dateValues.length > values.length * 0.8) {
         type = "datetime"
       }
@@ -231,6 +286,72 @@ export function VisualizationPanel({ data, onVisualizationGenerate }: Visualizat
     setSuggestions(newSuggestions)
   }, [selectedFeatures, columns])
 
+  const getFeatureTypes = (features: string[]) =>
+    features.map((feature) => columns.find((col) => col.name === feature)?.type).filter(Boolean) as ColumnInfo["type"][]
+
+  const isVisualizationCompatible = (viz: VisualizationTypeDefinition) => {
+    if (selectedFeatures.length < viz.minFeatures || selectedFeatures.length > viz.maxFeatures) {
+      return false
+    }
+    const featureTypes = getFeatureTypes(selectedFeatures)
+    if (featureTypes.length !== selectedFeatures.length) return false
+
+    if (viz.id === "correlation_matrix" || viz.id === "parallel_coordinates" || viz.id === "pairplot" || viz.id === "radar") {
+      return featureTypes.every((t) => t === "numerical")
+    }
+    if (viz.id === "bubble") {
+      return selectedFeatures.length === 3 && featureTypes.every((t) => t === "numerical")
+    }
+    if (viz.id === "boxplot_grouped") {
+      return featureTypes.includes("categorical") && featureTypes.includes("numerical")
+    }
+    if (viz.id === "barplot_grouped") {
+      return featureTypes.filter((t) => t === "categorical").length === 2
+    }
+    if (viz.id === "heatmap") {
+      return (
+        featureTypes.filter((t) => t === "numerical").length === 2 ||
+        featureTypes.filter((t) => t === "categorical").length === 2
+      )
+    }
+
+    if (viz.requires.length === 1) return featureTypes[0] === viz.requires[0]
+    if (viz.requires.length === 2) {
+      const required = [...viz.requires].sort().join("|")
+      const actual = [...featureTypes].sort().join("|")
+      return required === actual
+    }
+    return true
+  }
+
+  useEffect(() => {
+    if (!selectedVisualization) {
+      setCompatibilityErrors([])
+      return
+    }
+    const viz = VISUALIZATION_TYPES[analysisType].find((v) => v.id === selectedVisualization)
+    if (!viz) {
+      setCompatibilityErrors(["Selected visualization is not available for this analysis type."])
+      return
+    }
+    const errors: string[] = []
+    if (selectedFeatures.length < viz.minFeatures || selectedFeatures.length > viz.maxFeatures) {
+      errors.push(`Select ${viz.minFeatures === viz.maxFeatures ? viz.minFeatures : `${viz.minFeatures}-${viz.maxFeatures}`} feature(s).`)
+    }
+    if (selectedFeatures.length > 0 && !isVisualizationCompatible(viz)) {
+      errors.push("Feature type combination is incompatible with this visualization.")
+    }
+    setCompatibilityErrors(errors)
+  }, [selectedVisualization, selectedFeatures, analysisType, columns])
+
+  useEffect(() => {
+    if (!selectedVisualization) return
+    const viz = VISUALIZATION_TYPES[analysisType].find((v) => v.id === selectedVisualization)
+    if (!viz || !isVisualizationCompatible(viz)) {
+      setSelectedVisualization("")
+    }
+  }, [analysisType, selectedFeatures, selectedVisualization, columns])
+
   const handleFeatureToggle = (featureName: string) => {
     setSelectedFeatures((prev) =>
       prev.includes(featureName) ? prev.filter((f) => f !== featureName) : [...prev, featureName],
@@ -261,7 +382,9 @@ export function VisualizationPanel({ data, onVisualizationGenerate }: Visualizat
   }
 
   const handleGenerateVisualization = () => {
-    if (selectedVisualization && selectedFeatures.length > 0) {
+    const viz = VISUALIZATION_TYPES[analysisType].find((v) => v.id === selectedVisualization)
+    if (!viz) return
+    if (selectedVisualization && selectedFeatures.length > 0 && isVisualizationCompatible(viz)) {
       onVisualizationGenerate({
         type: selectedVisualization,
         features: selectedFeatures,
@@ -412,15 +535,20 @@ export function VisualizationPanel({ data, onVisualizationGenerate }: Visualizat
               {VISUALIZATION_TYPES[analysisType].map((viz) => {
                 const Icon = viz.icon
                 const isRecommended = suggestions.includes(viz.id)
+                const isCompatible = isVisualizationCompatible(viz)
                 return (
                   <div
                     key={viz.id}
                     className={`p-4 rounded-lg border cursor-pointer transition-all ${
                       selectedVisualization === viz.id
                         ? "border-blue-500 bg-blue-500/10"
-                        : "border-[#2a2a2a] bg-[#1a1a1a] hover:border-[#3a3a3a]"
+                        : isCompatible
+                          ? "border-[#2a2a2a] bg-[#1a1a1a] hover:border-[#3a3a3a]"
+                          : "border-[#2a2a2a] bg-[#101010] opacity-60 cursor-not-allowed"
                     } ${isRecommended ? "ring-1 ring-green-500/30" : ""}`}
-                    onClick={() => setSelectedVisualization(viz.id)}
+                    onClick={() => {
+                      if (isCompatible) setSelectedVisualization(viz.id)
+                    }}
                   >
                     <div className="flex items-start space-x-3">
                       <Icon className="h-5 w-5 mt-0.5 text-blue-400" />
@@ -435,12 +563,25 @@ export function VisualizationPanel({ data, onVisualizationGenerate }: Visualizat
                         </div>
                         <p className="text-sm text-gray-400 mt-1">{viz.description}</p>
                         <div className="text-xs text-gray-500 mt-2">Requires: {viz.requires.join(" + ")}</div>
+                        <div className="text-xs text-gray-500 mt-1">
+                          Features: {viz.minFeatures === viz.maxFeatures ? viz.minFeatures : `${viz.minFeatures}-${viz.maxFeatures}`}
+                        </div>
+                        {!isCompatible && (
+                          <div className="text-xs text-red-400 mt-2">Incompatible with current feature selection</div>
+                        )}
                       </div>
                     </div>
                   </div>
                 )
               })}
             </div>
+            {compatibilityErrors.length > 0 && (
+              <div className="mt-4 p-3 rounded-md bg-red-500/10 border border-red-500/20 text-red-300 text-sm">
+                {compatibilityErrors.map((error) => (
+                  <div key={error}>- {error}</div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
@@ -448,7 +589,11 @@ export function VisualizationPanel({ data, onVisualizationGenerate }: Visualizat
       {/* Generate Button */}
       {selectedVisualization && selectedFeatures.length > 0 && (
         <div className="flex justify-center">
-          <Button onClick={handleGenerateVisualization} className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-2">
+          <Button
+            onClick={handleGenerateVisualization}
+            disabled={compatibilityErrors.length > 0}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-2 disabled:opacity-50"
+          >
             Generate Visualization
           </Button>
         </div>
