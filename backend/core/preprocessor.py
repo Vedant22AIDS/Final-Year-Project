@@ -456,4 +456,97 @@ class EnhancedDataPreprocessor:
             summary["categorical_stats"] = categorical_stats
 
         return summary
+    #Himanshi's contribution for class imbalance analysis and balancing
+    def analyze_class_imbalance(self, target: str) -> Dict[str, Any]:
+        if target not in self.df.columns:
+            raise ValueError(f"Target column '{target}' not found")
+
+        class_counts = self.df[target].value_counts()
+        total = len(self.df)
+
+        if len(class_counts) < 2:
+            raise ValueError("Imbalance analysis requires at least 2 classes")
+
+        imbalance_ratio = class_counts.max() / class_counts.min()
+
+        result = {
+            "class_distribution": class_counts.to_dict(),
+            "total_samples": total,
+            "imbalance_ratio": float(imbalance_ratio),
+            "is_imbalanced": bool(imbalance_ratio > 1.5)
+        }
+
+        self.operations_log.append({
+            "operation": "analyze_class_imbalance",
+            "target": target,
+            "result": safe_convert_to_json(result),
+            "timestamp": datetime.now().isoformat()
+        })
+
+        return safe_convert_to_json(result)
+    
+    def apply_class_balancing(self, target: str, method: str = "random_over") -> Dict[str, Any]:
+        if target not in self.df.columns:
+            raise ValueError(f"Target column '{target}' not found")
+
+        if len(self.df[target].unique()) < 2:
+            raise ValueError("Balancing requires at least 2 classes")
+
+        X = self.df.drop(columns=[target])
+        y = self.df[target]
+
+        if method == "random_over":
+            from imblearn.over_sampling import RandomOverSampler
+            sampler = RandomOverSampler(random_state=42)
+
+        elif method == "random_under":
+            from imblearn.under_sampling import RandomUnderSampler
+            sampler = RandomUnderSampler(random_state=42)
+
+        elif method == "smote":
+            from imblearn.over_sampling import SMOTE
+            sampler = SMOTE(random_state=42)
+
+        elif method == "smote_tomek":
+            from imblearn.combine import SMOTETomek
+            sampler = SMOTETomek(random_state=42)
+
+        elif method == "class_weight":
+            class_counts = y.value_counts()
+            total = len(y)
+            weights = {cls: total / (len(class_counts) * count) for cls, count in class_counts.items()}
+            return {
+                "method": "class_weight",
+                "class_weights": weights
+            }
+
+        else:
+            raise ValueError("Invalid balancing method")
+
+        X_res, y_res = sampler.fit_resample(X, y)
+
+        self.df = pd.concat([
+            pd.DataFrame(X_res, columns=X.columns),
+            pd.Series(y_res, name=target)
+        ], axis=1)
+
+        self._invalidate_random_cache()
+
+        result = {
+            "method": method,
+            "original_distribution": y.value_counts().to_dict(),
+            "new_distribution": pd.Series(y_res).value_counts().to_dict()
+        }
+
+        self.operations_log.append({
+            "operation": "apply_class_balancing",
+            "target": target,
+            "method": method,
+            "result": safe_convert_to_json(result),
+            "timestamp": datetime.now().isoformat()
+        })
+
+        return safe_convert_to_json(result)
+    #ends
+
 

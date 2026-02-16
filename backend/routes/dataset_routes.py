@@ -1,6 +1,7 @@
 from fastapi import APIRouter, File, Query, Request, UploadFile
 
 from controllers.dataset_controller import DatasetController
+from schemas.dataset_schemas import BalanceRequest
 
 router = APIRouter(prefix="/api", tags=["dataset"])
 
@@ -106,3 +107,32 @@ async def reset_dataset(dataset_id: str):
 async def get_processing_history(dataset_id: str):
     return await DatasetController.get_processing_history(dataset_id)
 
+#Himanshi's contribution for class imbalance analysis and balancing
+@router.get("/dataset/{dataset_id}/imbalance")
+async def analyze_imbalance(dataset_id: str, target: str):
+    return await DatasetController.analyze_class_imbalance(dataset_id, target)
+
+@router.post("/dataset/{dataset_id}/balance")
+async def balance_dataset(dataset_id: str, request: BalanceRequest):
+    return await DatasetController.apply_class_balancing(
+        dataset_id,
+        request.target,
+        request.method
+    )
+
+# @router.post("/dataset/{dataset_id}/balance")
+# async def balance_dataset(dataset_id: str, request: Request):
+#     try:
+#         body = await request.json()
+#     except Exception:
+#         return {"error": "JSON body required"}
+
+#     if not body or "target" not in body:
+#         return {"error": "Target field required"}
+
+#     return await DatasetController.apply_class_balancing(
+#         dataset_id,
+#         body.get("target"),
+#         body.get("method", "random_over")
+#     )
+#ends

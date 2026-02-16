@@ -22,7 +22,9 @@ import TextNormalizationPanel from "../features/text-preprocessing/normalization
 import FeatureExtraction from "../features/text-preprocessing/feature-extraction.tsx";
 import LabelEncodingPanel from "../features/text-preprocessing/label-encoding.tsx";
 import ImportTextData from "../features/text-preprocessing/import-data.tsx";
-
+//Himanshi's contribution for class imbalance analysis and balancing
+import { ClassBalancingPanel } from "../features/class-balancing-panel.tsx";
+import type { BalancingMethod } from "../features/class-balancing-panel.tsx";
 interface VisualizationConfig {
   type: string;
   analysisType: "univariate" | "bivariate" | "multivariate";
@@ -90,6 +92,7 @@ export interface MainContentProps {
   | "missing-values-quick"
   | "normalization"
   | "outliers"
+  | "class-balancing"
   | "database-connectors"
   | "validation"
   | "text-preprocessing-basic-cleaning"
@@ -99,23 +102,29 @@ export interface MainContentProps {
   | "text-preprocessing-feature-extraction"
   | "text-preprocessing-label-encoding"
   | "text-preprocessing-import-data"
-
+  //"class-balancing"
+  
   onBackToOverview: () => void
   summaryData: any
   datasetSummary: any
   correlationData: any
   disabled: boolean
+
+
   onQuickImputeApply: (strategy: string, fillValue?: string) => void
   onMissingValuesApply: (strategy: string, columns: string[], fillValue?: string) => void
   onNormalizationApply: (method: string, columns: string[]) => void
   onEncodingApply: (method: string, columns: string[]) => void
   onOutlierRemovalApply: (method: "iqr" | "zscore", columns: string[], threshold: number) => void
+  onClassBalancingApply: (target: string,method: BalancingMethod) => void
   onDatabaseConnectionTest: (payload: any) => Promise<void> | void
   onDatabaseConnectImport: (payload: any) => Promise<void> | void
   onUnstructuredImport: (payload: { text: string; fileName: string; charCount: number; wordCount: number; lineCount: number }) => void
   onBasicCleaningApply: (options: CleaningOption[]) => Promise<{ cleanedText: string } | void> | void
   onTokenizationApply: (config: TokenizationApplyConfig) => Promise<{ token_count: number; tokens: string[] } | void> | void
   onRefreshRandomSample: () => Promise<void>
+  classImbalance?: any;
+  onCheckClassImbalance: (target: string) => void;
 }
 // ...existing code...
 
@@ -139,12 +148,15 @@ export function MainContent({
   onNormalizationApply,
   onEncodingApply,
   onOutlierRemovalApply,
+  onClassBalancingApply,
   onDatabaseConnectionTest,
   onDatabaseConnectImport,
   onUnstructuredImport,
   onBasicCleaningApply,
   onTokenizationApply,
   onRefreshRandomSample,
+    classImbalance,
+  onCheckClassImbalance,
 
 }: MainContentProps) {
   const [searchQuery, setSearchQuery] = useState("");
@@ -697,6 +709,32 @@ if (analysisMode === "text-preprocessing-filtering") {
       </div>
     );
   }
+  if (analysisMode === "class-balancing") {
+  return (
+    <div className="flex-1 overflow-y-auto bg-[#000] p-4">
+      <Button
+        variant="outline"
+        onClick={onBackToOverview}
+        className="mb-4 bg-[#1e1e1e] border-[#2a2a2a] hover:bg-[#2a2a2a]"
+      >
+        <ArrowLeft className="h-4 w-4 mr-2" />
+        Back to Overview
+      </Button>
+
+      <ClassBalancingPanel
+        onBack={onBackToOverview}
+        onApply={onClassBalancingApply}
+        onCheckImbalance={onCheckClassImbalance}   // forward handler
+        classImbalance={classImbalance}    
+        //onCheckImbalance={handleCheckImbalance}
+        columns={datasetSummary?.columns || []}
+        
+      />
+    </div>
+  );
+}
+
+
   if (analysisMode === "validation") {
     return (
       <div className="flex-1 overflow-y-auto bg-[#000] p-4">
