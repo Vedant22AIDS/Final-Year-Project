@@ -4,9 +4,9 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from routes.dataset_routes import router as dataset_router
+from routes.agent_routes import router as agent_router
 from routes.health_routes import router as health_router
 from routes.text_routes import router as text_router
-from routes.validation_routes import router as validation_router
 from utils.response_helper import standardize_response
 
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
@@ -26,7 +26,7 @@ app.add_middleware(
 app.include_router(health_router)
 app.include_router(dataset_router)
 app.include_router(text_router)
-app.include_router(validation_router)
+app.include_router(agent_router)
 
 
 @app.exception_handler(HTTPException)

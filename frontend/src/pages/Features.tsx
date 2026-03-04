@@ -46,14 +46,7 @@ const featuresData = [
     highlight: "Auto-Scaling",
     stats: "Petabyte Ready",
   },
-  {
-    icon: <BarChart className="w-8 h-8" />,
-    title: "Advanced Analytics",
-    description:
-      "Comprehensive insights with real-time dashboards, custom metrics, and predictive analytics capabilities.",
-    highlight: "Real-Time Insights",
-    stats: "Live Monitoring",
-  },
+  // Removed Advanced Analytics (Live Monitoring)
   {
     icon: <Zap className="w-8 h-8" />,
     title: "Lightning Fast",

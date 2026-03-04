@@ -18,13 +18,14 @@ import { QuickImputePanel } from "../features/quick-impute-panel.tsx";
 import { OutlierRemovalPanel } from "../features/outlier-removal-panel.tsx";
 import { DatabaseConnectorsPanel } from "../features/database-connectors-panel.tsx";
 import FilteringPanel from "../features/text-preprocessing/filtering-panel.tsx";
-import TextNormalizationPanel from "../features/text-preprocessing/normalization-panel.tsx";
-import FeatureExtraction from "../features/text-preprocessing/feature-extraction.tsx";
+import TextNormalizationPanel, { type TextNormalizationConfig } from "../features/text-preprocessing/normalization-panel.tsx";
+import FeatureExtraction, { type FeatureExtractionConfig } from "../features/text-preprocessing/feature-extraction.tsx";
 import LabelEncodingPanel from "../features/text-preprocessing/label-encoding.tsx";
 import ImportTextData from "../features/text-preprocessing/import-data.tsx";
-//Himanshi's contribution for class imbalance analysis and balancing
-import { ClassBalancingPanel } from "../features/class-balancing-panel.tsx";
-import type { BalancingMethod } from "../features/class-balancing-panel.tsx";
+import PcaPanel from "../features/pca-panel.tsx";
+import ImbalancePanel from "../features/imbalance-panel.tsx";
+import type { DimensionalityReductionResponse } from "../hooks/use-api.ts";
+
 interface VisualizationConfig {
   type: string;
   analysisType: "univariate" | "bivariate" | "multivariate";
@@ -36,29 +37,44 @@ type TokenizationApplyConfig = {
   nGramSize: number;
 };
 
+type FilteringApplyConfig = {
+  removeStopWords: boolean;
+  minWordLength: number;
+};
+
+type TokenizationMethod = TokenizationApplyConfig["method"];
+
+const WORD_TOKEN_REGEX = /[^\W_]+(?:'[^\W_]+)?/gu;
+const SENTENCE_TOKEN_REGEX = /[^.!?]+[.!?]*(?=\s+|$)/g;
+
+const tokenizeWords = (text: string): string[] => text.match(WORD_TOKEN_REGEX) || [];
+
+const tokenizeSentences = (text: string): string[] =>
+  (text.trim().match(SENTENCE_TOKEN_REGEX) || [])
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+
+const generateNgrams = (words: string[], ngram: number): string[] => {
+  if (ngram <= 0 || words.length < ngram) return [];
+  return Array.from({ length: words.length - ngram + 1 }, (_, idx) =>
+    words.slice(idx, idx + ngram).join(" "),
+  );
+};
+
 const buildTokenPreview = (text: string, method: "word" | "sentence" | "ngram", ngram: number): string[] => {
   if (!text.trim()) return [];
 
-  const words = text.match(/\b\w+(?:'\w+)?\b/g) || [];
+  const words = tokenizeWords(text);
 
   if (method === "word") {
     return words.slice(0, 12);
   }
 
   if (method === "sentence") {
-    return text
-      .trim()
-      .split(/(?<=[.!?])\s+/)
-      .map((entry) => entry.trim())
-      .filter(Boolean)
-      .slice(0, 8);
+    return tokenizeSentences(text).slice(0, 8);
   }
 
-  if (words.length < ngram) return [];
-
-  return Array.from({ length: words.length - ngram + 1 }, (_, idx) =>
-    words.slice(idx, idx + ngram).join(" "),
-  ).slice(0, 12);
+  return generateNgrams(words, ngram).slice(0, 12);
 };
 
 // ...existing code...
@@ -83,17 +99,19 @@ export interface MainContentProps {
     categories: string
   }
   fileName: string
+  datasetId: string | null
   analysisMode:
   | "overview"
   | "visualization"
   | "summary"
   | "correlation"
+  | "imbalance"
   | "missing-values-advanced"
   | "missing-values-quick"
   | "normalization"
   | "outliers"
-  | "class-balancing"
   | "database-connectors"
+  | "pca"
   | "validation"
   | "text-preprocessing-basic-cleaning"
   | "text-preprocessing-tokenization"
@@ -102,29 +120,28 @@ export interface MainContentProps {
   | "text-preprocessing-feature-extraction"
   | "text-preprocessing-label-encoding"
   | "text-preprocessing-import-data"
-  //"class-balancing"
-  
+
   onBackToOverview: () => void
   summaryData: any
   datasetSummary: any
   correlationData: any
   disabled: boolean
-
-
   onQuickImputeApply: (strategy: string, fillValue?: string) => void
   onMissingValuesApply: (strategy: string, columns: string[], fillValue?: string) => void
   onNormalizationApply: (method: string, columns: string[]) => void
   onEncodingApply: (method: string, columns: string[]) => void
   onOutlierRemovalApply: (method: "iqr" | "zscore", columns: string[], threshold: number) => void
-  onClassBalancingApply: (target: string,method: BalancingMethod) => void
   onDatabaseConnectionTest: (payload: any) => Promise<void> | void
   onDatabaseConnectImport: (payload: any) => Promise<void> | void
   onUnstructuredImport: (payload: { text: string; fileName: string; charCount: number; wordCount: number; lineCount: number }) => void
   onBasicCleaningApply: (options: CleaningOption[]) => Promise<{ cleanedText: string } | void> | void
   onTokenizationApply: (config: TokenizationApplyConfig) => Promise<{ token_count: number; tokens: string[] } | void> | void
+  onFilteringApply: (config: FilteringApplyConfig) => Promise<{ filtered_text: string } | void> | void
+  onTextNormalizationApply: (config: TextNormalizationConfig) => Promise<{ normalized_text: string } | void> | void
+  onFeatureExtractionApply: (config: FeatureExtractionConfig) => Promise<{ result: any } | void> | void
+  onDimensionalityApplied: (result: DimensionalityReductionResponse) => void
+  onImbalanceApplied: (result: { technique: string; downloadId: string; outputFile: string }) => void
   onRefreshRandomSample: () => Promise<void>
-  classImbalance?: any;
-  onCheckClassImbalance: (target: string) => void;
 }
 // ...existing code...
 
@@ -137,6 +154,7 @@ export function MainContent({
   setActiveTab,
   technique,
   fileName,
+  datasetId,
   analysisMode = "overview",
   onBackToOverview,
   summaryData,
@@ -148,15 +166,17 @@ export function MainContent({
   onNormalizationApply,
   onEncodingApply,
   onOutlierRemovalApply,
-  onClassBalancingApply,
   onDatabaseConnectionTest,
   onDatabaseConnectImport,
   onUnstructuredImport,
   onBasicCleaningApply,
   onTokenizationApply,
+  onFilteringApply,
+  onTextNormalizationApply,
+  onFeatureExtractionApply,
+  onDimensionalityApplied,
+  onImbalanceApplied,
   onRefreshRandomSample,
-    classImbalance,
-  onCheckClassImbalance,
 
 }: MainContentProps) {
   const [searchQuery, setSearchQuery] = useState("");
@@ -511,10 +531,10 @@ export function MainContent({
             { key: "word", label: "Word Tokenization", desc: "Split text into individual words" },
             { key: "sentence", label: "Sentence Tokenization", desc: "Split text into sentences" },
             { key: "ngram", label: "N-gram Generation", desc: "Create sequences of N words" },
-          ].map((item) => (
+          ].map((item: { key: TokenizationMethod; label: string; desc: string }) => (
             <Card
               key={item.key}
-              onClick={() => setTokenizationMethod(item.key as any)}
+              onClick={() => setTokenizationMethod(item.key)}
               className={`cursor-pointer border transition ${tokenizationMethod === item.key
                 ? "border-blue-500 bg-[#111]"
                 : "border-[#2a2a2a] bg-[#0f0f0f] hover:bg-[#151515]"
@@ -598,10 +618,9 @@ if (analysisMode === "text-preprocessing-filtering") {
     return (
       <FilteringPanel
         onBack={onBackToOverview}
+        sourceText={sourceText || ""}
         disabled={disabled}
-        onApply={(config) => {
-          console.log("Filtering config:", config);
-        }}
+        onApply={onFilteringApply}
       />
     );
   }
@@ -609,7 +628,11 @@ if (analysisMode === "text-preprocessing-filtering") {
   if (analysisMode === "text-preprocessing-feature-extraction") {
     return (
       <div className="flex-1 overflow-y-auto bg-[#000] p-4">
-        <FeatureExtraction />
+        <FeatureExtraction
+          sourceText={sourceText || ""}
+          disabled={disabled}
+          onApply={onFeatureExtractionApply}
+        />
       </div>
     );
   }
@@ -618,10 +641,9 @@ if (analysisMode === "text-preprocessing-filtering") {
     return (
       <TextNormalizationPanel
         onBack={onBackToOverview}
+        sourceText={sourceText || ""}
         disabled={disabled}
-        onApply={(config) => {
-          console.log("Normalization config:", config);
-        }}
+        onApply={onTextNormalizationApply}
       />
     );
   }
@@ -696,6 +718,30 @@ if (analysisMode === "text-preprocessing-filtering") {
     );
   }
 
+  if (analysisMode === "pca") {
+    return (
+      <PcaPanel
+        datasetId={datasetId}
+        fileName={fileName}
+        onTechniqueApplied={onDimensionalityApplied}
+        onBack={onBackToOverview}
+        disabled={disabled}
+      />
+    );
+  }
+
+  if (analysisMode === "imbalance") {
+    return (
+      <ImbalancePanel
+        datasetId={datasetId}
+        fileName={fileName}
+        onTechniqueApplied={onImbalanceApplied}
+        onBack={onBackToOverview}
+        disabled={disabled}
+      />
+    );
+  }
+
   if (analysisMode === "outliers") {
     return (
       <div className="flex-1 overflow-y-auto bg-[#000] p-4">
@@ -709,32 +755,6 @@ if (analysisMode === "text-preprocessing-filtering") {
       </div>
     );
   }
-  if (analysisMode === "class-balancing") {
-  return (
-    <div className="flex-1 overflow-y-auto bg-[#000] p-4">
-      <Button
-        variant="outline"
-        onClick={onBackToOverview}
-        className="mb-4 bg-[#1e1e1e] border-[#2a2a2a] hover:bg-[#2a2a2a]"
-      >
-        <ArrowLeft className="h-4 w-4 mr-2" />
-        Back to Overview
-      </Button>
-
-      <ClassBalancingPanel
-        onBack={onBackToOverview}
-        onApply={onClassBalancingApply}
-        onCheckImbalance={onCheckClassImbalance}   // forward handler
-        classImbalance={classImbalance}    
-        //onCheckImbalance={handleCheckImbalance}
-        columns={datasetSummary?.columns || []}
-        
-      />
-    </div>
-  );
-}
-
-
   if (analysisMode === "validation") {
     return (
       <div className="flex-1 overflow-y-auto bg-[#000] p-4">

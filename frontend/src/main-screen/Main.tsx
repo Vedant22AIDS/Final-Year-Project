@@ -9,7 +9,11 @@ import { TopNavbar } from "./Top-navbar.tsx"
 import { LoadingOverlay } from "../components/ui/loading-overlay.tsx"
 import { ScrollArea } from "../components/ui/ScrollArea.tsx"
 import { useApi } from "../hooks/use-api.ts"
+import type { DatabaseConnectorPayload } from "../hooks/use-api.ts"
+import type { DimensionalityReductionResponse } from "../hooks/use-api.ts"
 import type { CleaningOption } from "../features/text-preprocessing/basic-cleaning.tsx"
+import type { TextNormalizationConfig } from "../features/text-preprocessing/normalization-panel.tsx"
+import type { FeatureExtractionConfig } from "../features/text-preprocessing/feature-extraction.tsx"
 import { toast } from "sonner"
 
 export type LogEntry = {
@@ -24,6 +28,21 @@ interface ProcessingStatus {
   progress: number
   message: string
 }
+
+type AppliedDimensionality = {
+  technique: string
+  downloadId: string
+  outputFile: string
+}
+
+type AppliedImbalance = {
+  technique: string
+  downloadId: string
+  outputFile: string
+}
+
+const APPLIED_DR_STORAGE_KEY = "applied_dimensionality_result"
+const APPLIED_IMBALANCE_STORAGE_KEY = "applied_imbalance_result"
 
 type DataKind = "none" | "structured" | "unstructured"
 
@@ -40,11 +59,185 @@ type TokenizationConfig = {
   nGramSize: number
 }
 
+type FilteringConfig = {
+  removeStopWords: boolean
+  minWordLength: number
+}
+
+const WORD_TOKEN_REGEX = /[^\W_]+(?:'[^\W_]+)?/gu
+const FILTER_STOP_WORDS = new Set([
+  "a", "an", "and", "are", "as", "at", "be", "been", "being", "but", "by", "can", "could", "did", "do",
+  "does", "doing", "for", "from", "had", "has", "have", "having", "he", "her", "here", "hers", "herself",
+  "him", "himself", "his", "how", "i", "if", "in", "into", "is", "it", "its", "itself", "just", "me", "more",
+  "most", "my", "myself", "no", "nor", "not", "of", "on", "or", "our", "ours", "ourselves", "out", "over",
+  "she", "should", "so", "some", "such", "than", "that", "the", "their", "theirs", "them", "themselves",
+  "then", "there", "these", "they", "this", "those", "through", "to", "too", "under", "until", "up", "very",
+  "was", "we", "were", "what", "when", "where", "which", "while", "who", "whom", "why", "will", "with", "you",
+  "your", "yours", "yourself", "yourselves", "am", "isn't", "aren't", "wasn't", "weren't", "don't", "doesn't",
+  "didn't", "can't", "couldn't", "won't", "wouldn't", "shouldn't", "hasn't", "haven't", "hadn't", "i'm", "you're",
+  "we're", "they're", "he's", "she's", "it's", "that's", "there's", "here's", "i've", "you've", "we've", "they've",
+  "i'll", "you'll", "we'll", "they'll", "i'd", "you'd", "we'd", "they'd", "s", "t", "d", "ll", "m", "re", "ve",
+])
+
+const filterTextLocally = (text: string, removeStopWords: boolean, minWordLength: number) => {
+  const originalTokens = text.match(WORD_TOKEN_REGEX) || []
+  const filteredTokens = originalTokens.filter((token) => {
+    if (removeStopWords && FILTER_STOP_WORDS.has(token.toLowerCase())) return false
+    return token.length >= minWordLength
+  })
+  return {
+    filteredText: filteredTokens.join(" "),
+    removedTokenCount: originalTokens.length - filteredTokens.length,
+    filteredTokenCount: filteredTokens.length,
+  }
+}
+
+const LOCAL_LEMMA_MAP: Record<string, string> = {
+  running: "run",
+  better: "good",
+  children: "child",
+  went: "go",
+  was: "be",
+  were: "be",
+}
+
+const COMMON_MISSPELLINGS_LOCAL: Record<string, string> = {
+  definately: "definitely",
+  occured: "occurred",
+  untill: "until",
+  wich: "which",
+  becuase: "because",
+  adress: "address",
+  enviroment: "environment",
+  goverment: "government",
+  accomodate: "accommodate",
+  calender: "calendar",
+  concious: "conscious",
+  dependant: "dependent",
+  embarass: "embarrass",
+  existance: "existence",
+  foriegn: "foreign",
+  happend: "happened",
+  immediatly: "immediately",
+  independant: "independent",
+}
+
+const correctSpellingLocally = (token: string) => {
+  if (!/^[A-Za-z]+$/.test(token) || token.length <= 2) return token
+  const lower = token.toLowerCase()
+  if (COMMON_MISSPELLINGS_LOCAL[lower]) return COMMON_MISSPELLINGS_LOCAL[lower]
+  const squashed = lower.replace(/(.)\1{2,}/g, "$1$1")
+  if (squashed !== lower) return squashed
+  return token
+}
+
+const stemTokenLocally = (token: string, algorithm: "porter" | "snowball") => {
+  const lower = token.toLowerCase()
+  if (lower.length <= 3) return token
+
+  let stem = lower
+  if (stem.endsWith("ies") && stem.length > 4) {
+    stem = stem.slice(0, -3) + "y"
+  } else if (stem.endsWith("ing") && stem.length > 5) {
+    stem = stem.slice(0, -3)
+    if (stem.length > 2 && stem[stem.length - 1] === stem[stem.length - 2] && !"lsz".includes(stem[stem.length - 1])) {
+      stem = stem.slice(0, -1)
+    }
+  } else if (stem.endsWith("ed") && stem.length > 4) {
+    stem = stem.slice(0, -2)
+    if (stem.length > 2 && stem[stem.length - 1] === stem[stem.length - 2] && !"lsz".includes(stem[stem.length - 1])) {
+      stem = stem.slice(0, -1)
+    }
+  } else if (algorithm === "snowball" && stem.endsWith("ly") && stem.length > 4) {
+    stem = stem.slice(0, -2)
+  }
+  return stem
+}
+
+const normalizeTextLocally = (
+  text: string,
+  method: TextNormalizationConfig["method"],
+  stemmingAlgorithm: TextNormalizationConfig["stemmingAlgorithm"],
+) => {
+  const tokens = text.match(WORD_TOKEN_REGEX) || []
+  const normalizedTokens = tokens.map((token) => {
+    const lower = token.toLowerCase()
+    if (method === "stemming") return stemTokenLocally(token, stemmingAlgorithm)
+    if (method === "lemmatization") {
+      if (LOCAL_LEMMA_MAP[lower]) return LOCAL_LEMMA_MAP[lower]
+      if (lower.endsWith("ies") && lower.length > 4) return lower.slice(0, -3) + "y"
+      if (lower.endsWith("s") && lower.length > 4 && !lower.endsWith("ss") && !lower.endsWith("us") && !lower.endsWith("is")) {
+        return lower.slice(0, -1)
+      }
+      return token
+    }
+    return correctSpellingLocally(token)
+  })
+  const normalizedText = normalizedTokens.join(" ")
+  return {
+    normalizedText,
+    changedTokenCount: normalizedTokens.reduce((acc, token, idx) => acc + (token !== tokens[idx] ? 1 : 0), 0),
+    normalizedTokenCount: normalizedTokens.length,
+  }
+}
+
+const buildFeatureExtractionFallback = (
+  text: string,
+  method: FeatureExtractionConfig["method"],
+  maxFeatures: number,
+  vectorSize: number,
+) => {
+  const tokens = (text.match(WORD_TOKEN_REGEX) || []).map((t) => t.toLowerCase())
+  const vocabCounts: Record<string, number> = {}
+  for (const token of tokens) {
+    vocabCounts[token] = (vocabCounts[token] || 0) + 1
+  }
+  const sortedTerms = Object.entries(vocabCounts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, Math.max(10, Math.min(10000, maxFeatures)))
+
+  if (method === "bow") {
+    return {
+      id: "doc1",
+      values: Object.fromEntries(sortedTerms.map(([term, count]) => [term, count])),
+    }
+  }
+
+  if (method === "tfidf") {
+    const totalTerms = tokens.length || 1
+    return {
+      id: "doc1",
+      values: Object.fromEntries(
+        sortedTerms.map(([term, count]) => [term, Number((count / totalTerms).toFixed(6))]),
+      ),
+    }
+  }
+
+  const size = Math.max(10, Math.min(1024, vectorSize))
+  const values = Array.from({ length: size }, (_, idx) => {
+    const seed = (tokens[idx % Math.max(tokens.length, 1)] || "token").charCodeAt(0) + idx * 31
+    return Number((((seed % 200) - 100) / 100).toFixed(6))
+  })
+  return [
+    {
+      id: "1",
+      values,
+      metadata: {
+        text,
+      },
+    },
+  ]
+}
+
 export function DataPreprocessingApp() {
   const [datasetId, setDatasetId] = useState<string | null>(null)
   const [fileName, setFileName] = useState<string>("")
   const [dataKind, setDataKind] = useState<DataKind>("none")
   const [unstructuredData, setUnstructuredData] = useState<UnstructuredDataPayload | null>(null)
+  const [tokenizationBaseText, setTokenizationBaseText] = useState<string>("")
+  const [lastTextTransform, setLastTextTransform] = useState<"processed" | "cleaned" | "tokenized" | "filtered" | "normalized" | "feature-extraction">("processed")
+  const [featureExtractionResult, setFeatureExtractionResult] = useState<any | null>(null)
+  const [tokenizationResult, setTokenizationResult] = useState<any | null>(null)
   const [tableData, setTableData] = useState<any[]>([])
   const [activeTab, setActiveTab] = useState<"Head" | "Tail" | "Random Sample">("Head")
   const [technique, setTechnique] = useState({
@@ -54,17 +247,17 @@ export function DataPreprocessingApp() {
     mean: "0",
     categories: "0",
   })
-  const [classImbalance, setClassImbalance] = useState<any>(null);
   const [analysisMode, setAnalysisMode] = useState<
     | "overview"
     | "visualization"
     | "summary"
     | "correlation"
+    | "imbalance"
+    | "pca"
     | "missing-values-advanced"
     | "missing-values-quick"
     | "normalization"
     | "outliers"
-    | "class-balancing"
     | "database-connectors"
     | "validation"
     | "text-preprocessing-basic-cleaning"
@@ -87,6 +280,8 @@ export function DataPreprocessingApp() {
   const [summaryData, setSummaryData] = useState<any>(null)
   const [datasetSummary, setDatasetSummary] = useState<any>(null)
   const [correlationData, setCorrelationData] = useState<any>(null)
+  const [appliedDimensionality, setAppliedDimensionality] = useState<AppliedDimensionality | null>(null)
+  const [appliedImbalance, setAppliedImbalance] = useState<AppliedImbalance | null>(null)
   const [logs, setLogs] = useState<LogEntry[]>([])
   const [processingStatus, setProcessingStatus] = useState<ProcessingStatus>({
     status: "idle",
@@ -179,9 +374,21 @@ export function DataPreprocessingApp() {
     setDatasetId(null)
     setTableData([])
     setUnstructuredData(null)
+    setTokenizationBaseText("")
+    setLastTextTransform("processed")
+    setFeatureExtractionResult(null)
+    setTokenizationResult(null)
     setSummaryData(null)
     setDatasetSummary(null)
     setCorrelationData(null)
+    setAppliedDimensionality(null)
+    setAppliedImbalance(null)
+    try {
+      sessionStorage.removeItem(APPLIED_DR_STORAGE_KEY)
+      sessionStorage.removeItem(APPLIED_IMBALANCE_STORAGE_KEY)
+    } catch {
+      // ignore storage errors
+    }
     setDataKind("none")
     setAnalysisMode("overview")
     setActiveTab("Head")
@@ -251,13 +458,25 @@ export function DataPreprocessingApp() {
   const handleUnstructuredImport = (payload: UnstructuredDataPayload) => {
     setDataKind("unstructured")
     setUnstructuredData(payload)
+    setTokenizationBaseText(payload.text || "")
     setDatasetId(null)
     setTableData([])
     setSummaryData(null)
     setDatasetSummary(null)
     setCorrelationData(null)
+    setAppliedDimensionality(null)
+    setAppliedImbalance(null)
+    try {
+      sessionStorage.removeItem(APPLIED_DR_STORAGE_KEY)
+      sessionStorage.removeItem(APPLIED_IMBALANCE_STORAGE_KEY)
+    } catch {
+      // ignore storage errors
+    }
     setFileName(payload.fileName || "Unstructured Data")
     setAnalysisMode("overview")
+    setLastTextTransform("processed")
+    setFeatureExtractionResult(null)
+    setTokenizationResult(null)
 
     addLog({
       title: "Unstructured Data Imported",
@@ -393,7 +612,7 @@ export function DataPreprocessingApp() {
     try {
       setProcessingStatus({ status: "processing", progress: 50, message: "Generating data summary..." })
 
-      const summaryRaw = await api.getDatasetSummary(datasetId!)
+      const summaryRaw = await api.getDatasetSummary(datasetId)
       // Add a type assertion to ensure summary is typed
       const summary = summaryRaw as {
         shape?: [number, number]
@@ -497,31 +716,6 @@ export function DataPreprocessingApp() {
       }, 3000)
     }
   }
-const handleCheckClassImbalance = async (target: string) => {
-  if (!ensureStructuredData()) return;
-  if (!datasetId) {
-    toast.error("No dataset loaded");
-    return;
-  }
-
-  try {
-    setProcessingStatus({ status: "processing", progress: 10, message: "Checking class imbalance..." });
-
-    // use the generic api.apiCall (useApi exposes apiCall)
-    // endpoint path depends on your backend — adjust `/imbalance` path if needed
-    const res = await api.apiCall<any>(`/dataset/${datasetId}/imbalance?target=${encodeURIComponent(target)}`);
-    setClassImbalance(res);
-
-    toast.success("Class imbalance stats received");
-    setProcessingStatus({ status: "completed", progress: 100, message: "Imbalance check complete" });
-    setTimeout(() => setProcessingStatus({ status: "idle", progress: 0, message: "" }), 1200);
-  } catch (err) {
-    console.error("Imbalance check failed:", err);
-    toast.error((err as any)?.message ?? "Imbalance check failed");
-    setProcessingStatus({ status: "error", progress: 0, message: "Imbalance check failed" });
-    setTimeout(() => setProcessingStatus({ status: "idle", progress: 0, message: "" }), 2000);
-  }
-};
 
   const handleCorrelationAnalysisClick = async () => {
     if (!ensureStructuredData()) return
@@ -529,7 +723,7 @@ const handleCheckClassImbalance = async (target: string) => {
     try {
       setProcessingStatus({ status: "processing", progress: 50, message: "Analyzing correlations..." })
 
-      const correlationRaw = await api.getCorrelationAnalysis(datasetId!)
+      const correlationRaw = await api.getCorrelationAnalysis(datasetId)
       const correlation = correlationRaw as { numericalColumns?: any[] }
       setCorrelationData(correlation)
       setAnalysisMode("correlation")
@@ -622,6 +816,10 @@ const handleCheckClassImbalance = async (target: string) => {
         wordCount: cleanedStats?.word_count ?? (cleaned.trim() ? cleaned.trim().split(/\s+/).length : 0),
         lineCount: cleanedStats?.line_count ?? (cleaned ? cleaned.split("\n").length : 0),
       })
+      setTokenizationBaseText(cleaned)
+      setLastTextTransform("cleaned")
+      setFeatureExtractionResult(null)
+      setTokenizationResult(null)
 
       setProcessingStatus({ status: "completed", progress: 100, message: "Basic cleaning applied successfully" })
 
@@ -673,24 +871,29 @@ const handleCheckClassImbalance = async (target: string) => {
     try {
       setProcessingStatus({ status: "processing", progress: 40, message: "Applying tokenization..." })
 
-      const result = await api.tokenizeText(unstructuredData!.text, method, nGramSize)
+      const sourceForTokenization = tokenizationBaseText.trim() ? tokenizationBaseText : unstructuredData!.text
+      const result = await api.tokenizeText(sourceForTokenization, method, method === "ngram" ? nGramSize : 2)
       const tokens = result.tokens || []
       const transformedText = method === "sentence" ? tokens.join("\n") : tokens.join(" ")
+      const wordCount = (transformedText.match(WORD_TOKEN_REGEX) || []).length
 
       setUnstructuredData({
         text: transformedText,
         fileName: unstructuredData!.fileName,
         charCount: transformedText.length,
-        wordCount: tokens.length,
-        lineCount: transformedText ? transformedText.split("\n").length : 0,
+        wordCount,
+        lineCount: transformedText ? transformedText.split(/\r?\n/).length : 0,
       })
+      setTokenizationResult(result)
+      setLastTextTransform("tokenized")
+      setFeatureExtractionResult(null)
 
       setProcessingStatus({ status: "completed", progress: 100, message: "Tokenization applied successfully" })
 
       addLog({
         title: "Tokenization Applied",
         date: new Date().toLocaleString(),
-        details: `Method: ${method}${method === "ngram" ? ` (n=${nGramSize})` : ""}. Generated ${result.token_count} tokens.`,
+        details: `Method: ${method}${method === "ngram" ? ` (n=${nGramSize})` : ""}. Generated ${result.total_tokens || result.token_count} tokens.`,
         type: "info",
       })
 
@@ -730,23 +933,258 @@ const handleCheckClassImbalance = async (target: string) => {
     });
   };
 
+  const handleFilteringApply = async ({ removeStopWords, minWordLength }: FilteringConfig) => {
+    if (!ensureUnstructuredData()) return
+
+    const sourceText = unstructuredData!.text
+
+    try {
+      setProcessingStatus({ status: "processing", progress: 40, message: "Applying text filtering..." })
+
+      const result = await api.filterText(sourceText, removeStopWords, minWordLength)
+      const local = filterTextLocally(sourceText, removeStopWords, minWordLength)
+      const filtered = local.filteredText || result.filtered_text || ""
+      const filteredStats = result.stats?.cleaned
+
+      setUnstructuredData({
+        text: filtered,
+        fileName: unstructuredData!.fileName,
+        charCount: filteredStats?.char_count ?? filtered.length,
+        wordCount: filteredStats?.word_count ?? (filtered.match(WORD_TOKEN_REGEX) || []).length,
+        lineCount: filteredStats?.line_count ?? (filtered ? filtered.split(/\r?\n/).length : 0),
+      })
+      setTokenizationBaseText(filtered)
+      setLastTextTransform("filtered")
+      setFeatureExtractionResult(null)
+      setTokenizationResult(null)
+
+      setProcessingStatus({ status: "completed", progress: 100, message: "Text filtering applied successfully" })
+
+      addLog({
+        title: "Text Filtering Applied",
+        date: new Date().toLocaleString(),
+        details: `Removed ${local.removedTokenCount} tokens (stop words: ${removeStopWords ? "on" : "off"}, min length: ${minWordLength}).`,
+        type: "info",
+      })
+
+      toast.success("Text filtering applied")
+
+      setTimeout(() => {
+        setProcessingStatus({ status: "idle", progress: 0, message: "" })
+      }, 1500)
+
+      return result
+    } catch (error) {
+      const local = filterTextLocally(sourceText, removeStopWords, minWordLength)
+
+      setUnstructuredData({
+        text: local.filteredText,
+        fileName: unstructuredData!.fileName,
+        charCount: local.filteredText.length,
+        wordCount: local.filteredTokenCount,
+        lineCount: local.filteredText ? local.filteredText.split(/\r?\n/).length : 0,
+      })
+      setTokenizationBaseText(local.filteredText)
+      setLastTextTransform("filtered")
+      setFeatureExtractionResult(null)
+      setTokenizationResult(null)
+
+      const errorMessage = error instanceof Error ? error.message : "Text filtering failed"
+      setProcessingStatus({ status: "completed", progress: 100, message: "Text filtering applied with local fallback" })
+      toast.warning("Backend filtering unavailable, applied local filtering")
+      addLog({
+        title: "Text Filtering Applied (Fallback)",
+        date: new Date().toLocaleString(),
+        details: `Local filtering removed ${local.removedTokenCount} tokens. Backend error: ${errorMessage}`,
+        type: "warning",
+      })
+      setTimeout(() => {
+        setProcessingStatus({ status: "idle", progress: 0, message: "" })
+      }, 1500)
+    }
+  }
+
+  const handleTextNormalizationApply = async ({ method, stemmingAlgorithm }: TextNormalizationConfig) => {
+    if (!ensureUnstructuredData()) return
+
+    const sourceText = unstructuredData!.text
+
+    try {
+      setProcessingStatus({ status: "processing", progress: 40, message: "Applying text normalization..." })
+
+      const result = await api.normalizeText(sourceText, method, stemmingAlgorithm)
+      const local = normalizeTextLocally(sourceText, method, stemmingAlgorithm)
+      const normalized = result.normalized_text || local.normalizedText || ""
+      const normalizedStats = result.stats?.cleaned
+
+      setUnstructuredData({
+        text: normalized,
+        fileName: unstructuredData!.fileName,
+        charCount: normalizedStats?.char_count ?? normalized.length,
+        wordCount: normalizedStats?.word_count ?? (normalized.match(WORD_TOKEN_REGEX) || []).length,
+        lineCount: normalizedStats?.line_count ?? (normalized ? normalized.split(/\r?\n/).length : 0),
+      })
+      setTokenizationBaseText(normalized)
+      setLastTextTransform("normalized")
+      setFeatureExtractionResult(null)
+      setTokenizationResult(null)
+
+      setProcessingStatus({ status: "completed", progress: 100, message: "Text normalization applied successfully" })
+      addLog({
+        title: "Text Normalization Applied",
+        date: new Date().toLocaleString(),
+        details: `Method: ${method}${method === "stemming" ? ` (${stemmingAlgorithm})` : ""}. Changed ${local.changedTokenCount} tokens.`,
+        type: "info",
+      })
+      toast.success("Text normalization applied")
+      setTimeout(() => {
+        setProcessingStatus({ status: "idle", progress: 0, message: "" })
+      }, 1500)
+
+      return result
+    } catch (error) {
+      const local = normalizeTextLocally(sourceText, method, stemmingAlgorithm)
+      setUnstructuredData({
+        text: local.normalizedText,
+        fileName: unstructuredData!.fileName,
+        charCount: local.normalizedText.length,
+        wordCount: local.normalizedTokenCount,
+        lineCount: local.normalizedText ? local.normalizedText.split(/\r?\n/).length : 0,
+      })
+      setTokenizationBaseText(local.normalizedText)
+      setLastTextTransform("normalized")
+      setFeatureExtractionResult(null)
+      setTokenizationResult(null)
+
+      const errorMessage = error instanceof Error ? error.message : "Text normalization failed"
+      setProcessingStatus({ status: "completed", progress: 100, message: "Text normalization applied with local fallback" })
+      toast.warning("Backend normalization unavailable, applied local normalization")
+      addLog({
+        title: "Text Normalization Applied (Fallback)",
+        date: new Date().toLocaleString(),
+        details: `Local normalization changed ${local.changedTokenCount} tokens. Backend error: ${errorMessage}`,
+        type: "warning",
+      })
+      setTimeout(() => {
+        setProcessingStatus({ status: "idle", progress: 0, message: "" })
+      }, 1500)
+    }
+  }
+
+  const downloadBlob = (blob: Blob, downloadName: string) => {
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = downloadName
+    document.body.appendChild(a)
+    a.click()
+    window.URL.revokeObjectURL(url)
+    document.body.removeChild(a)
+  }
+
+  const getUnstructuredDownloadName = () =>
+    `${(unstructuredData?.fileName || fileName || "text").replace(/\.[^/.]+$/, "")}_${lastTextTransform}.txt`
+
+  const getFeatureExtractionDownloadName = () =>
+    `${(unstructuredData?.fileName || fileName || "text").replace(/\.[^/.]+$/, "")}_feature_extraction.json`
+
+  const handleFeatureExtractionApply = async ({ method, maxFeatures, ngramRange, vectorSize }: FeatureExtractionConfig) => {
+    if (!ensureUnstructuredData()) return
+
+    try {
+      setProcessingStatus({ status: "processing", progress: 40, message: "Applying feature extraction..." })
+      const result = await api.extractTextFeatures(unstructuredData!.text, method, maxFeatures, ngramRange, vectorSize)
+
+      const payload = result?.result ?? buildFeatureExtractionFallback(unstructuredData!.text, method, maxFeatures, vectorSize)
+      setFeatureExtractionResult(payload)
+      setLastTextTransform("feature-extraction")
+
+      setProcessingStatus({ status: "completed", progress: 100, message: "Feature extraction applied successfully" })
+      addLog({
+        title: "Feature Extraction Applied",
+        date: new Date().toLocaleString(),
+        details: `Method: ${method}. Vector length: ${result.vector_length}.`,
+        type: "info",
+      })
+      toast.success("Feature extraction applied")
+      setTimeout(() => {
+        setProcessingStatus({ status: "idle", progress: 0, message: "" })
+      }, 1500)
+
+      return { result: payload }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Feature extraction failed"
+      const fallbackPayload = buildFeatureExtractionFallback(unstructuredData!.text, method, maxFeatures, vectorSize)
+      setFeatureExtractionResult(fallbackPayload)
+      setLastTextTransform("feature-extraction")
+      setProcessingStatus({ status: "completed", progress: 100, message: "Feature extraction applied with local fallback" })
+      toast.warning("Backend extraction unavailable, applied local feature extraction")
+      addLog({
+        title: "Feature Extraction Applied (Fallback)",
+        date: new Date().toLocaleString(),
+        details: `Local ${method} JSON generated. Backend error: ${errorMessage}`,
+        type: "warning",
+      })
+      setTimeout(() => {
+        setProcessingStatus({ status: "idle", progress: 0, message: "" })
+      }, 1500)
+      return { result: fallbackPayload }
+    }
+  }
+
   const handleExportFile = async () => {
+    if (dataKind === "unstructured") {
+      if (!ensureUnstructuredData()) return
+
+      try {
+        setProcessingStatus({ status: "processing", progress: 50, message: "Preparing text export..." })
+
+        const isFeatureExtraction = lastTextTransform === "feature-extraction"
+        const featurePayload = featureExtractionResult ?? buildFeatureExtractionFallback(unstructuredData!.text, "tfidf", 1000, 100)
+        const downloadName = isFeatureExtraction
+          ? getFeatureExtractionDownloadName()
+          : getUnstructuredDownloadName()
+        const fileBlob = isFeatureExtraction
+          ? new Blob([JSON.stringify(featurePayload, null, 2)], { type: "application/json;charset=utf-8" })
+            : new Blob([unstructuredData!.text], { type: "text/plain;charset=utf-8" })
+        downloadBlob(fileBlob, downloadName)
+
+        setProcessingStatus({ status: "completed", progress: 100, message: "Text exported successfully!" })
+        addLog({
+          title: "Text Exported",
+          date: new Date().toLocaleString(),
+          details: `${isFeatureExtraction ? "Feature extraction JSON" : "Processed text"} exported as ${downloadName}`,
+          type: "info",
+        })
+        toast.success(isFeatureExtraction ? "Feature extraction JSON exported" : "Processed text exported")
+
+        setTimeout(() => {
+          setProcessingStatus({ status: "idle", progress: 0, message: "" })
+        }, 1500)
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : "Text export failed"
+        setProcessingStatus({ status: "error", progress: 0, message: errorMessage })
+        addLog({
+          title: "Text Export Error",
+          date: new Date().toLocaleString(),
+          details: errorMessage,
+          type: "error",
+        })
+        toast.error(errorMessage)
+        setTimeout(() => {
+          setProcessingStatus({ status: "idle", progress: 0, message: "" })
+        }, 2000)
+      }
+      return
+    }
+
     if (!ensureStructuredData()) return
 
     try {
       setProcessingStatus({ status: "processing", progress: 50, message: "Preparing export..." })
 
-      const { blob, filename } = await api.exportDataset(datasetId!)
-
-      // Create download link
-      const url = window.URL.createObjectURL(blob)
-      const a = document.createElement("a")
-      a.href = url
-      a.download = filename || `processed_${fileName || "data"}.csv`
-      document.body.appendChild(a)
-      a.click()
-      window.URL.revokeObjectURL(url)
-      document.body.removeChild(a)
+      const { blob, filename } = await api.exportDataset(datasetId)
+      downloadBlob(blob, filename || `processed_${fileName || "data"}.csv`)
 
       setProcessingStatus({ status: "completed", progress: 100, message: "File exported successfully!" })
 
@@ -790,7 +1228,149 @@ const handleCheckClassImbalance = async (target: string) => {
       return
     }
 
+    if (dataKind === "unstructured") {
+      if (!ensureUnstructuredData()) return
+
+      try {
+        setProcessingStatus({ status: "processing", progress: 50, message: "Saving project..." })
+
+        const isFeatureExtraction = lastTextTransform === "feature-extraction"
+        const isTokenization = lastTextTransform === "tokenized" && tokenizationResult
+        
+        let downloadContent: string
+        let downloadName: string
+        let mimeType: string
+
+        if (isFeatureExtraction) {
+          const featurePayload = featureExtractionResult ?? buildFeatureExtractionFallback(unstructuredData!.text, "tfidf", 1000, 100)
+          downloadName = getFeatureExtractionDownloadName()
+          downloadContent = JSON.stringify(featurePayload, null, 2)
+          mimeType = "application/json;charset=utf-8"
+        } else if (isTokenization) {
+          downloadName = getUnstructuredDownloadName().replace(/\.txt$/, ".json")
+          downloadContent = JSON.stringify(tokenizationResult, null, 2)
+          mimeType = "application/json;charset=utf-8"
+        } else {
+          downloadName = getUnstructuredDownloadName()
+          downloadContent = unstructuredData!.text
+          mimeType = "text/plain;charset=utf-8"
+        }
+
+        const fileBlob = new Blob([downloadContent], { type: mimeType })
+        downloadBlob(fileBlob, downloadName)
+
+        setProcessingStatus({ status: "completed", progress: 100, message: "Processed text saved successfully!" })
+        addLog({
+          title: "Text Saved",
+          date: new Date().toLocaleString(),
+          details: `${isTokenization ? "Tokenization results" : isFeatureExtraction ? "Feature extraction JSON" : "Processed text"} saved as ${downloadName}`,
+          type: "info",
+        })
+        toast.success(isTokenization ? "Tokenization results saved" : isFeatureExtraction ? "Feature extraction JSON saved" : "Processed text saved")
+
+        setTimeout(() => {
+          setProcessingStatus({ status: "idle", progress: 0, message: "" })
+        }, 1500)
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : "Save failed"
+        setProcessingStatus({ status: "error", progress: 0, message: errorMessage })
+        toast.error(errorMessage)
+        addLog({
+          title: "Save Project Error",
+          date: new Date().toLocaleString(),
+          details: errorMessage,
+          type: "error",
+        })
+        setTimeout(() => {
+          setProcessingStatus({ status: "idle", progress: 0, message: "" })
+        }, 2000)
+      }
+      return
+    }
+
     try {
+      let imbalanceArtifact = appliedImbalance
+      if (!imbalanceArtifact) {
+        try {
+          const raw = sessionStorage.getItem(APPLIED_IMBALANCE_STORAGE_KEY)
+          if (raw) {
+            const parsed = JSON.parse(raw) as AppliedImbalance
+            if (parsed?.downloadId) {
+              imbalanceArtifact = parsed
+              setAppliedImbalance(parsed)
+            }
+          }
+        } catch {
+          // ignore storage errors
+        }
+      }
+
+      if (imbalanceArtifact?.downloadId) {
+        setProcessingStatus({ status: "processing", progress: 50, message: "Saving imbalance output CSV..." })
+        const { blob, filename } = await api.downloadImbalanceOutput(imbalanceArtifact.downloadId)
+        const resolvedName = filename || imbalanceArtifact.outputFile || `imbalance_${imbalanceArtifact.technique}.csv`
+        downloadBlob(blob, resolvedName)
+        setProcessingStatus({ status: "completed", progress: 100, message: "Imbalance CSV saved successfully!" })
+        addLog({
+          title: "Project Saved",
+          date: new Date().toLocaleString(),
+          details: `Saved imbalance output as ${resolvedName}.`,
+          type: "info",
+        })
+        toast.success("Saved imbalance output CSV")
+        setTimeout(() => {
+          setProcessingStatus({ status: "idle", progress: 0, message: "" })
+        }, 1500)
+        return
+      }
+
+      let drArtifact = appliedDimensionality
+      if (!drArtifact) {
+        try {
+          const raw = sessionStorage.getItem(APPLIED_DR_STORAGE_KEY)
+          if (raw) {
+            const parsed = JSON.parse(raw) as AppliedDimensionality
+            if (parsed?.downloadId) {
+              drArtifact = parsed
+              setAppliedDimensionality(parsed)
+            }
+          }
+        } catch {
+          // ignore storage errors
+        }
+      }
+
+      if (drArtifact?.downloadId) {
+        setProcessingStatus({ status: "processing", progress: 50, message: "Saving transformed CSV..." })
+
+        const { blob, filename } = await api.downloadDimensionalityReduction(drArtifact.downloadId)
+        const resolvedName =
+          filename || drArtifact.outputFile || `transformed_${drArtifact.technique}.csv`
+        downloadBlob(blob, resolvedName)
+
+        setProcessingStatus({ status: "completed", progress: 100, message: "Transformed CSV saved successfully!" })
+        addLog({
+          title: "Project Saved",
+          date: new Date().toLocaleString(),
+          details: `Saved transformed ${drArtifact.technique.toUpperCase()} file as ${resolvedName}.`,
+          type: "info",
+        })
+        toast.success(`Saved ${drArtifact.technique.toUpperCase()} output`)
+        setTimeout(() => {
+          setProcessingStatus({ status: "idle", progress: 0, message: "" })
+        }, 1500)
+        return
+      }
+
+      if (analysisMode === "pca") {
+        toast.error("Run a PCA/SVD/t-SNE/UMAP technique first, then Save Project")
+        return
+      }
+      if (analysisMode === "imbalance") {
+        toast.error("Run imbalance handling first, then Save Project")
+        return
+      }
+
       const history = datasetId ? await api.getProcessingHistory(datasetId) : { operations: [] }
       const projectPayload = {
         exported_at: new Date().toISOString(),
@@ -803,14 +1383,7 @@ const handleCheckClassImbalance = async (target: string) => {
       }
 
       const blob = new Blob([JSON.stringify(projectPayload, null, 2)], { type: "application/json" })
-      const url = window.URL.createObjectURL(blob)
-      const a = document.createElement("a")
-      a.href = url
-      a.download = `${(fileName || "project").replace(/\.[^/.]+$/, "")}_project.json`
-      document.body.appendChild(a)
-      a.click()
-      window.URL.revokeObjectURL(url)
-      document.body.removeChild(a)
+      downloadBlob(blob, `${(fileName || "project").replace(/\.[^/.]+$/, "")}_project.json`)
 
       addLog({
         title: "Project Saved",
@@ -905,13 +1478,13 @@ const handleCheckClassImbalance = async (target: string) => {
     )
   }
   const handleLabelEncodingClick = () => {
-    if (!ensureUnstructuredData()) return
+    if (!ensureStructuredData()) return
     setAnalysisMode("text-preprocessing-label-encoding");
 
     addLog({
       title: "Label & Encoding",
       date: new Date().toLocaleString(),
-      details: "Opened label and encoding panel.",
+      details: "Opened label and encoding panel for structured data.",
       type: "info",
     });
   };
@@ -954,40 +1527,6 @@ const handleCheckClassImbalance = async (target: string) => {
       `Outliers removed using ${method} method for ${columns.length} columns`,
     )
   }
-  const handleClassBalancingClick = () => {
-  if (!ensureStructuredData()) return
-
-  setAnalysisMode("class-balancing")
-
-  addLog({
-    title: "Class Balancing Panel",
-    date: new Date().toLocaleString(),
-    details: "Opened class balancing panel.",
-    type: "info",
-  })
-}
-type BalancingMethod =
-  | "random_over"
-  | "random_under"
-  | "smote"
-  | "smote_tomek"
-  | "class_weight"
-
-const handleClassBalancingApply = (
-  target: string,
-  method: BalancingMethod
-) => {
-  if (!datasetId) return
-  if (!ensureStructuredData()) return
-
-  handleProcessingOperation(
-    () => api.applyClassBalancing(datasetId!, target, method),
-    "Class Balancing",
-    `Class balancing applied using ${method} on target "${target}"`
-  )
-}
-
-
 
   const handleDatabaseConnectorsClick = () => {
     setAnalysisMode("database-connectors")
@@ -999,14 +1538,160 @@ const handleClassBalancingApply = (
     })
   }
 
-  const handleDatabaseConnectionTest = async (payload: any) => {
-    console.log("Database connector test payload:", payload)
-    toast.success("Connection test request prepared on frontend")
+  const handleDatabaseConnectionTest = async (payload: DatabaseConnectorPayload) => {
+    try {
+      setProcessingStatus({ status: "processing", progress: 40, message: "Testing database connection..." })
+      const result = await api.testDatabaseConnection(payload)
+      setProcessingStatus({ status: "completed", progress: 100, message: "Database connection successful" })
+      addLog({
+        title: "Database Connection Test",
+        date: new Date().toLocaleString(),
+        details: `Connection successful. Query: ${result.query}`,
+        type: "info",
+      })
+      toast.success("Database connection successful")
+      setTimeout(() => {
+        setProcessingStatus({ status: "idle", progress: 0, message: "" })
+      }, 1200)
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Database connection test failed"
+      setProcessingStatus({ status: "error", progress: 0, message: errorMessage })
+      addLog({
+        title: "Database Connection Test Failed",
+        date: new Date().toLocaleString(),
+        details: errorMessage,
+        type: "error",
+      })
+      toast.error(errorMessage)
+      setTimeout(() => {
+        setProcessingStatus({ status: "idle", progress: 0, message: "" })
+      }, 2000)
+      throw error
+    }
   }
 
-  const handleDatabaseConnectImport = async (payload: any) => {
-    console.log("Database connector import payload:", payload)
-    toast.info("Frontend panel implemented. Backend connector API can be wired next.")
+  const handlePcaClick = () => {
+    if (!ensureStructuredData()) return
+
+    setAnalysisMode("pca")
+    addLog({
+      title: "PCA / Dimensionality Reduction",
+      date: new Date().toLocaleString(),
+      details: "Opened PCA tab with dimensionality reduction techniques.",
+      type: "info",
+    })
+  }
+
+  const handleImbalanceClick = () => {
+    if (!ensureStructuredData()) return
+    setAnalysisMode("imbalance")
+    addLog({
+      title: "Imbalance Handling",
+      date: new Date().toLocaleString(),
+      details: "Opened standalone imbalance handling tab.",
+      type: "info",
+    })
+  }
+
+  const handleDimensionalityApplied = (result: DimensionalityReductionResponse) => {
+    if (!result?.download_id) return
+    const applied = {
+      technique: result.technique,
+      downloadId: result.download_id,
+      outputFile: result.output_file,
+    }
+    setAppliedDimensionality(applied)
+    try {
+      sessionStorage.setItem(APPLIED_DR_STORAGE_KEY, JSON.stringify(applied))
+    } catch {
+      // ignore storage errors
+    }
+    addLog({
+      title: "Dimensionality Reduction Applied",
+      date: new Date().toLocaleString(),
+      details: `${result.technique.toUpperCase()} applied. Save Project will download ${result.output_file}.`,
+      type: "info",
+    })
+  }
+
+  const handleImbalanceApplied = (result: { technique: string; downloadId: string; outputFile: string }) => {
+    const applied = {
+      technique: result.technique,
+      downloadId: result.downloadId,
+      outputFile: result.outputFile,
+    }
+    setAppliedImbalance(applied)
+    try {
+      sessionStorage.setItem(APPLIED_IMBALANCE_STORAGE_KEY, JSON.stringify(applied))
+    } catch {
+      // ignore storage errors
+    }
+    addLog({
+      title: "Imbalance Handling Applied",
+      date: new Date().toLocaleString(),
+      details: `${result.technique} applied. Save Project will download ${result.outputFile}.`,
+      type: "info",
+    })
+  }
+
+  const handleDatabaseConnectImport = async (payload: DatabaseConnectorPayload) => {
+    try {
+      setProcessingStatus({ status: "processing", progress: 45, message: "Connecting to database and importing data..." })
+
+      const result = await api.connectDatabaseAndImport(payload)
+
+      setDatasetId(result.dataset_id)
+      setFileName(result.filename)
+      setTableData(result.sample_data || [])
+      setDataKind("structured")
+      setUnstructuredData(null)
+      setTokenizationBaseText("")
+      setSummaryData(null)
+      setCorrelationData(null)
+      setAppliedDimensionality(null)
+      setAppliedImbalance(null)
+      try {
+        sessionStorage.removeItem(APPLIED_DR_STORAGE_KEY)
+        sessionStorage.removeItem(APPLIED_IMBALANCE_STORAGE_KEY)
+      } catch {
+        // ignore storage errors
+      }
+      setFeatureExtractionResult(null)
+      setTokenizationResult(null)
+      setLastTextTransform("processed")
+      setActiveTab("Head")
+      setLastActiveTab("")
+
+      updateDataFromSummary(result.summary)
+      setAnalysisMode("overview")
+
+      setProcessingStatus({ status: "completed", progress: 100, message: "Database data imported successfully" })
+      addLog({
+        title: "Database Import Successful",
+        date: new Date().toLocaleString(),
+        details: `Imported dataset ${result.filename} with ${result.summary?.shape?.[0] || 0} rows.`,
+        type: "info",
+      })
+      toast.success("Database import completed. Redirected to Overview.")
+
+      setTimeout(() => {
+        setProcessingStatus({ status: "idle", progress: 0, message: "" })
+      }, 1500)
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Database import failed"
+      setProcessingStatus({ status: "error", progress: 0, message: errorMessage })
+      addLog({
+        title: "Database Import Failed",
+        date: new Date().toLocaleString(),
+        details: errorMessage,
+        type: "error",
+      })
+      toast.error(errorMessage)
+      setTimeout(() => {
+        setProcessingStatus({ status: "idle", progress: 0, message: "" })
+      }, 2500)
+      throw error
+    }
   }
 
   // Add handler for refreshing random sample
@@ -1038,6 +1723,36 @@ const handleClassBalancingApply = (
     }
   }
 
+  const handleAgentMessage = async (msg: string, agentMode = true): Promise<string> => {
+    const datasetType = dataKind === "unstructured" ? "unstructured" : "structured"
+    const fallbackSummary =
+      dataKind === "unstructured"
+        ? {
+            file_name: unstructuredData?.fileName || fileName,
+            char_count: unstructuredData?.charCount || 0,
+            word_count: unstructuredData?.wordCount || 0,
+            line_count: unstructuredData?.lineCount || 0,
+          }
+        : {}
+
+    const summaryPayload = (datasetSummary || summaryData || fallbackSummary || {}) as Record<string, any>
+    const agentResponse = await api.chatWithAgent({
+      dataset_type: datasetType,
+      summary: summaryPayload,
+      question: msg || "",
+      agent_mode: agentMode ? "yes" : "no",
+    })
+
+    const reply = agentResponse?.reply || "No response from agent."
+    addLog({
+      title: "Agent Response",
+      date: new Date().toLocaleString(),
+      details: reply.slice(0, 240),
+      type: "info",
+    })
+    return reply
+  }
+
   return (
     <div className="flex flex-col h-screen bg-[#000] text-white overflow-hidden">
       <TopNavbar handleExportFile={handleExportFile} handleSaveProject={handleSaveProject} />
@@ -1050,11 +1765,11 @@ const handleClassBalancingApply = (
             onVisualizationClick={handleVisualizationClick}
             onDataSummaryClick={handleDataSummaryClick}
             onCorrelationAnalysisClick={handleCorrelationAnalysisClick}
+            onPcaClick={handlePcaClick}
+            onImbalanceClick={handleImbalanceClick}
             onMissingValuesClick={handleAdvancedImputationClick}
             onQuickImputeClick={handleQuickImputeClick}
             onOutliersClick={handleOutliersClick}
-            onClassBalancingClick={handleClassBalancingClick}
-
             onExportClick={handleExportFile}
             onSaveProjectClick={handleSaveProject}
             onNormalizationClick={handleNormalizationClick}
@@ -1078,11 +1793,14 @@ const handleClassBalancingApply = (
               tableData={tableData}
               dataKind={dataKind}
               unstructuredData={unstructuredData}
-              sourceText={unstructuredData?.text || ""}
+              sourceText={analysisMode === "text-preprocessing-tokenization"
+                ? (tokenizationBaseText || unstructuredData?.text || "")
+                : (unstructuredData?.text || "")}
               activeTab={activeTab}
               setActiveTab={setActiveTab}
               technique={technique}
               fileName={fileName}
+              datasetId={datasetId}
               analysisMode={analysisMode}
               onBackToOverview={handleBackToOverview}
               summaryData={summaryData}
@@ -1094,22 +1812,23 @@ const handleClassBalancingApply = (
               onNormalizationApply={handleNormalizationApply}
               onEncodingApply={handleEncodingApply}
               onOutlierRemovalApply={handleOutlierRemovalApply}
-              onClassBalancingApply={handleClassBalancingApply}
               onDatabaseConnectionTest={handleDatabaseConnectionTest}
               onDatabaseConnectImport={handleDatabaseConnectImport}
               onUnstructuredImport={handleUnstructuredImport}
               onBasicCleaningApply={handleBasicCleaningApply}
               onTokenizationApply={handleTokenizationApply}
+              onFilteringApply={handleFilteringApply}
+              onTextNormalizationApply={handleTextNormalizationApply}
+              onFeatureExtractionApply={handleFeatureExtractionApply}
+              onDimensionalityApplied={handleDimensionalityApplied}
+              onImbalanceApplied={handleImbalanceApplied}
               onRefreshRandomSample={handleRefreshRandomSample}
-              classImbalance={classImbalance}
-              onCheckClassImbalance={handleCheckClassImbalance}
-
             />
           </ScrollArea>
         </div>
 
         <div className="h-full w-1/5 shrink-0 border-l border-[#1a1a1a]">
-          <RightSidebar logs={logs} />
+          <RightSidebar logs={logs} onSendMessage={handleAgentMessage} />
         </div>
       </div>
 

@@ -1,7 +1,8 @@
-from fastapi import APIRouter, File, Query, Request, UploadFile
+from typing import Optional
+
+from fastapi import APIRouter, File, Form, Query, Request, UploadFile
 
 from controllers.dataset_controller import DatasetController
-from schemas.dataset_schemas import BalanceRequest
 
 router = APIRouter(prefix="/api", tags=["dataset"])
 
@@ -9,6 +10,18 @@ router = APIRouter(prefix="/api", tags=["dataset"])
 @router.post("/upload")
 async def upload_file(file: UploadFile = File(...)):
     return await DatasetController.upload_file(file)
+
+
+@router.post("/database/test-connection")
+async def test_database_connection(request: Request):
+    body = await request.json()
+    return await DatasetController.test_database_connection(body)
+
+
+@router.post("/database/connect-import")
+async def connect_database_and_import(request: Request):
+    body = await request.json()
+    return await DatasetController.connect_database_and_import(body)
 
 
 @router.get("/dataset/{dataset_id}/status")
@@ -107,32 +120,51 @@ async def reset_dataset(dataset_id: str):
 async def get_processing_history(dataset_id: str):
     return await DatasetController.get_processing_history(dataset_id)
 
-#Himanshi's contribution for class imbalance analysis and balancing
-@router.get("/dataset/{dataset_id}/imbalance")
-async def analyze_imbalance(dataset_id: str, target: str):
-    return await DatasetController.analyze_class_imbalance(dataset_id, target)
 
-@router.post("/dataset/{dataset_id}/balance")
-async def balance_dataset(dataset_id: str, request: BalanceRequest):
-    return await DatasetController.apply_class_balancing(
-        dataset_id,
-        request.target,
-        request.method
+@router.post("/dataset/{dataset_id}/dimensionality-reduction")
+async def apply_dimensionality_reduction(dataset_id: str, request: Request):
+    body = await request.json()
+    return await DatasetController.apply_dimensionality_reduction(dataset_id, body)
+
+
+@router.post("/preprocessing/dimensionality-reduction")
+async def apply_dimensionality_reduction_upload(
+    file: UploadFile = File(...),
+    technique: str = Form(...),
+    n_components: Optional[int] = Form(None),
+    scale_data: bool = Form(False),
+    random_state: Optional[int] = Form(42),
+    perplexity: float = Form(30.0),
+    n_neighbors: int = Form(15),
+):
+    return await DatasetController.apply_dimensionality_reduction_upload(
+        file=file,
+        technique=technique,
+        n_components=n_components,
+        scale_data=scale_data,
+        random_state=random_state,
+        perplexity=perplexity,
+        n_neighbors=n_neighbors,
     )
 
-# @router.post("/dataset/{dataset_id}/balance")
-# async def balance_dataset(dataset_id: str, request: Request):
-#     try:
-#         body = await request.json()
-#     except Exception:
-#         return {"error": "JSON body required"}
 
-#     if not body or "target" not in body:
-#         return {"error": "Target field required"}
+@router.post("/dataset/{dataset_id}/pca")
+async def apply_pca(dataset_id: str, request: Request):
+    body = await request.json()
+    return await DatasetController.apply_pca(dataset_id, body)
 
-#     return await DatasetController.apply_class_balancing(
-#         dataset_id,
-#         body.get("target"),
-#         body.get("method", "random_over")
-#     )
-#ends
+
+@router.post("/preprocessing/pca")
+async def apply_pca_upload(
+    file: UploadFile = File(...),
+    n_components: Optional[int] = Form(None),
+    scale_data: bool = Form(False),
+    random_state: Optional[int] = Form(42),
+):
+    return await DatasetController.apply_pca_upload(
+        file=file,
+        n_components=n_components,
+        scale_data=scale_data,
+        random_state=random_state,
+    )
+

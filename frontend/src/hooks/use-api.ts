@@ -50,8 +50,124 @@ export interface BasicCleaningResponse {
 export interface TokenizationResponse {
   token_type: "word" | "sentence" | "ngram";
   n: number | null;
+  total_tokens: number;
   token_count: number;
   tokens: string[];
+}
+
+export interface TextFilteringResponse {
+  filtered_text: string;
+  settings: {
+    remove_stop_words: boolean;
+    min_word_length: number;
+  };
+  original_token_count: number;
+  filtered_token_count: number;
+  removed_token_count: number;
+  tokens: string[];
+  stats: {
+    original: {
+      char_count: number;
+      word_count: number;
+      line_count: number;
+    };
+    cleaned: {
+      char_count: number;
+      word_count: number;
+      line_count: number;
+    };
+  };
+}
+
+export interface TextNormalizationResponse {
+  normalized_text: string;
+  method: "stemming" | "lemmatization" | "spell-correction";
+  stemming_algorithm: "porter" | "snowball" | null;
+  original_token_count: number;
+  normalized_token_count: number;
+  changed_token_count: number;
+  tokens: string[];
+  stats: {
+    original: {
+      char_count: number;
+      word_count: number;
+      line_count: number;
+    };
+    cleaned: {
+      char_count: number;
+      word_count: number;
+      line_count: number;
+    };
+  };
+}
+
+export type FeatureExtractionMethod = "tfidf" | "bow" | "word2vec";
+
+export interface FeatureExtractionResponse {
+  extraction_id: string | null;
+  method: FeatureExtractionMethod;
+  result: Record<string, any> | Array<Record<string, any>>;
+  vector_length: number;
+  config: {
+    max_features: number;
+    ngram_range: string;
+    vector_size: number;
+  };
+}
+
+export interface DatabaseConnectorPayload {
+  db_type: "postgresql" | "mysql" | "mssql" | "sqlite";
+  host?: string;
+  port?: string;
+  database?: string;
+  username?: string;
+  password?: string;
+  schema?: string;
+  table: string;
+  sqlite_path?: string;
+  query?: string;
+}
+
+export type DimensionalityTechnique = "pca" | "svd" | "tsne" | "umap";
+
+export interface DimensionalityReductionRequest {
+  technique: DimensionalityTechnique;
+  n_components?: number;
+  scale_data?: boolean;
+  random_state?: number;
+  perplexity?: number;
+  n_neighbors?: number;
+}
+
+export interface DimensionalityReductionResponse {
+  technique: DimensionalityTechnique;
+  input_shape: {
+    rows: number;
+    columns: number;
+  };
+  numeric_columns: string[];
+  n_components?: number;
+  scale_data: boolean;
+  transformed_data: Array<Record<string, number>>;
+  output_file: string;
+  explained_variance_ratio?: number[];
+  cumulative_variance?: number[];
+  column_names?: string[];
+}
+
+export interface AgentChatRequest {
+  dataset_type?: "structured" | "unstructured";
+  summary?: Record<string, any>;
+  question?: string;
+  agent_mode?: boolean | string;
+  model?: string;
+}
+
+export interface AgentChatResponse {
+  reply: string;
+  used_default_prompt: boolean;
+  prompt_type: "DEFAULT_PROMPT" | "QUESTION";
+  model: string;
 }
 
 /** Hook return type (partial, inferred by TS from implementation) */
@@ -382,6 +498,57 @@ export function useApi() {
     [apiCall]
   );
 
+  const filterText = useCallback(
+    (text: string, removeStopWords = true, minWordLength = 1) =>
+      apiCall<TextFilteringResponse>(`/text/filtering`, {
+        method: "POST",
+        body: JSON.stringify({
+          text,
+          remove_stop_words: removeStopWords,
+          min_word_length: minWordLength,
+        }),
+      }),
+    [apiCall]
+  );
+
+  const normalizeText = useCallback(
+    (
+      text: string,
+      method: "stemming" | "lemmatization" | "spell-correction",
+      stemmingAlgorithm: "porter" | "snowball" = "porter"
+    ) =>
+      apiCall<TextNormalizationResponse>(`/text/normalize`, {
+        method: "POST",
+        body: JSON.stringify({
+          text,
+          method,
+          stemming_algorithm: stemmingAlgorithm,
+        }),
+      }),
+    [apiCall]
+  );
+
+  const extractTextFeatures = useCallback(
+    (
+      text: string,
+      method: FeatureExtractionMethod,
+      maxFeatures = 1000,
+      ngramRange = "1-1",
+      vectorSize = 100
+    ) =>
+      apiCall<FeatureExtractionResponse>(`/text/feature-extraction`, {
+        method: "POST",
+        body: JSON.stringify({
+          text,
+          method,
+          max_features: maxFeatures,
+          ngram_range: ngramRange,
+          vector_size: vectorSize,
+        }),
+      }),
+    [apiCall]
+  );
+
   const getProcessingHistory = useCallback(
     (datasetId: string) => apiCall(`/dataset/${datasetId}/history`),
     [apiCall]
@@ -390,6 +557,121 @@ export function useApi() {
   const refreshRandomSample = useCallback(
     (datasetId: string) => apiCall(`/dataset/${datasetId}/refresh-random`, { method: "POST" }),
     [apiCall]
+  );
+
+  const testDatabaseConnection = useCallback(
+    (payload: DatabaseConnectorPayload) =>
+      apiCall<{ ok: boolean; query: string }>(`/database/test-connection`, {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
+    [apiCall]
+  );
+
+  const connectDatabaseAndImport = useCallback(
+    (payload: DatabaseConnectorPayload) =>
+      apiCall<any>(`/database/connect-import`, {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
+    [apiCall]
+  );
+
+  const runDimensionalityReduction = useCallback(
+    (datasetId: string, payload: DimensionalityReductionRequest) =>
+      apiCall<DimensionalityReductionResponse>(`/dataset/${datasetId}/dimensionality-reduction`, {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
+    [apiCall]
+  );
+
+  const chatWithAgent = useCallback(
+    async (payload: AgentChatRequest) => {
+      const datasetType = payload.dataset_type ?? "structured";
+      const summary = payload.summary ?? {};
+      const question = (payload.question ?? "").trim();
+      const agentModeRaw = payload.agent_mode;
+      const agentModeOn =
+        typeof agentModeRaw === "string"
+          ? ["true", "1", "yes", "on"].includes(agentModeRaw.toLowerCase())
+          : Boolean(agentModeRaw);
+
+      const parseReply = (json: any): string =>
+        json?.data?.reply ?? json?.reply ?? json?.text_output ?? "";
+
+      try {
+        const chatResp = await fetch(`${API_BASE_URL}/agent/chat`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        if (chatResp.ok) {
+          const chatJson = await chatResp.json();
+          if (chatJson?.success === false) {
+            throw new Error(chatJson?.error ?? chatJson?.message ?? "Agent chat failed");
+          }
+          return {
+            reply: parseReply(chatJson),
+            used_default_prompt: Boolean(chatJson?.data?.used_default_prompt),
+            prompt_type: (chatJson?.data?.prompt_type ?? "QUESTION") as "DEFAULT_PROMPT" | "QUESTION",
+            model: chatJson?.data?.model ?? payload.model ?? "unknown",
+          } as AgentChatResponse;
+        }
+
+        if (chatResp.status !== 404) {
+          let chatJson: any = null;
+          try {
+            chatJson = await chatResp.json();
+          } catch {
+            // ignore parse errors and fallback to status text
+          }
+          throw new Error(chatJson?.error ?? chatJson?.message ?? `HTTP error: ${chatResp.status}`);
+        }
+
+        if (!agentModeOn || !question) {
+          const recommendResp = await fetch(`${API_BASE_URL}/agent/recommend`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ dataset_type: datasetType, summary }),
+          });
+          if (!recommendResp.ok) {
+            throw new Error(`HTTP error: ${recommendResp.status}`);
+          }
+          const recommendJson = await recommendResp.json();
+          const reply = parseReply(recommendJson);
+          return {
+            reply,
+            used_default_prompt: true,
+            prompt_type: "DEFAULT_PROMPT",
+            model: payload.model ?? "unknown",
+          } as AgentChatResponse;
+        }
+
+        const askResp = await fetch(`${API_BASE_URL}/agent/ask`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ dataset_type: datasetType, summary, question }),
+        });
+        if (!askResp.ok) {
+          throw new Error(`HTTP error: ${askResp.status}`);
+        }
+        const askJson = await askResp.json();
+        const reply = parseReply(askJson);
+        return {
+          reply,
+          used_default_prompt: false,
+          prompt_type: "QUESTION",
+          model: payload.model ?? "unknown",
+        } as AgentChatResponse;
+      } catch (err) {
+        if (err instanceof Error && (err as any).name === "AbortError") {
+          throw new Error("Agent request was cancelled.");
+        }
+        throw err;
+      }
+    },
+    []
   );
 
   const cancelRequest = useCallback(() => {
@@ -424,9 +706,16 @@ export function useApi() {
     resetDataset,
     getProcessingHistory,
     refreshRandomSample,
+    testDatabaseConnection,
+    connectDatabaseAndImport,
+    runDimensionalityReduction,
+    chatWithAgent,
     runValidation,
     basicCleanText,
     tokenizeText,
+    filterText,
+    normalizeText,
+    extractTextFeatures,
     pollStatus,
     cancelRequest,
   };

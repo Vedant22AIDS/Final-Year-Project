@@ -5,12 +5,23 @@ from fastapi import HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 
 from services.dataset_service import dataset_service
+from services.database_connector_service import database_connector_service
 from utils.response_helper import standardize_response
 
 logger = logging.getLogger(__name__)
 
 
 class DatasetController:
+    @staticmethod
+    def _to_bool(value: Any, default: bool = False) -> bool:
+        if value is None:
+            return default
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            return value.strip().lower() in {"true", "1", "yes", "on"}
+        return bool(value)
+
     @staticmethod
     async def upload_file(file: UploadFile) -> Any:
         if not file.filename:
@@ -32,6 +43,28 @@ class DatasetController:
         except Exception as e:
             logger.error("Upload failed: %s", str(e))
             return standardize_response(False, error=f"Error reading file: {str(e)}", status_code=500)
+
+    @staticmethod
+    async def test_database_connection(payload: Dict[str, Any]) -> Any:
+        try:
+            data = database_connector_service.test_connection(payload)
+            return standardize_response(True, data, "Database connection successful")
+        except ValueError as e:
+            return standardize_response(False, error=str(e), status_code=400)
+        except Exception as e:
+            logger.error("Database test connection failed: %s", str(e))
+            return standardize_response(False, error="Database connection failed", status_code=500)
+
+    @staticmethod
+    async def connect_database_and_import(payload: Dict[str, Any]) -> Any:
+        try:
+            data = database_connector_service.connect_and_import(payload)
+            return standardize_response(True, data, "Database connected and data imported successfully")
+        except ValueError as e:
+            return standardize_response(False, error=str(e), status_code=400)
+        except Exception as e:
+            logger.error("Database connect and import failed: %s", str(e))
+            return standardize_response(False, error="Database import failed", status_code=500)
 
     @staticmethod
     async def get_processing_status(dataset_id: str) -> Any:
@@ -190,32 +223,127 @@ class DatasetController:
         except Exception as e:
             return standardize_response(False, error=str(e), status_code=500)
 
-    #Himanshi's contribution for class imbalance analysis and balancing
     @staticmethod
-    async def analyze_class_imbalance(dataset_id: str, target: str):
+    async def validate_dataset(dataset_id: str, body: Dict[str, Any]) -> Any:
+        rules = body.get("rules", [])
         try:
-            data = dataset_service.analyze_class_imbalance(dataset_id, target)
-            return standardize_response(True, data, "Class imbalance analysis completed")
+            data = dataset_service.validate_dataset(dataset_id, rules)
+            return standardize_response(True, data, "Validation completed successfully")
         except ValueError as e:
             return standardize_response(False, error=str(e), status_code=400)
-
+        except Exception as e:
+            logger.error("Validation failed: %s", str(e))
+            return standardize_response(False, error="Validation failed", status_code=500)
 
     @staticmethod
-    async def apply_class_balancing(dataset_id: str, target: str, method: str):
-        valid_methods = [
-            "random_over",
-            "random_under",
-            "smote",
-            "smote_tomek",
-            "class_weight"
-        ]
-
-        if method not in valid_methods:
-            return standardize_response(False, error="Invalid balancing method", status_code=400)
-
+    async def apply_dimensionality_reduction(dataset_id: str, payload: Dict[str, Any]) -> Any:
         try:
-            data = dataset_service.apply_class_balancing(dataset_id, target, method)
-            return standardize_response(True, data, "Class balancing applied successfully")
+            technique = payload.get("technique", "pca")
+            n_components = payload.get("n_components")
+            n_components = int(n_components) if n_components is not None else None
+            scale_data = DatasetController._to_bool(payload.get("scale_data", False), default=False)
+            random_state = payload.get("random_state", 42)
+            random_state = int(random_state) if random_state is not None else None
+            perplexity = float(payload.get("perplexity", 30.0))
+            n_neighbors = int(payload.get("n_neighbors", 15))
+            
+            result = dataset_service.dimensionality_reduction(
+                dataset_id=dataset_id,
+                technique=technique,
+                n_components=n_components,
+                scale_data=scale_data,
+                random_state=random_state,
+                perplexity=perplexity,
+                n_neighbors=n_neighbors,
+            )
+            return standardize_response(True, result, f"Dimensionality reduction with {technique.upper()} applied successfully")
         except ValueError as e:
             return standardize_response(False, error=str(e), status_code=400)
-    #ends
+        except Exception as e:
+            logger.error("Dimensionality reduction failed: %s", str(e))
+            return standardize_response(False, error="Dimensionality reduction failed", status_code=500)
+
+    @staticmethod
+    async def apply_dimensionality_reduction_upload(
+        file: UploadFile,
+        technique: str,
+        n_components: Optional[int],
+        scale_data: Any,
+        random_state: Optional[int],
+        perplexity: float,
+        n_neighbors: int,
+    ) -> Any:
+        if not file or not file.filename:
+            return standardize_response(False, error="No file selected", status_code=400)
+        if not file.filename.lower().endswith(".csv"):
+            return standardize_response(False, error="Only CSV files are supported", status_code=400)
+
+        try:
+            content = await file.read()
+            result = dataset_service.dimensionality_reduction_from_upload(
+                filename=file.filename,
+                content=content,
+                technique=technique,
+                n_components=n_components,
+                scale_data=DatasetController._to_bool(scale_data, default=False),
+                random_state=random_state,
+                perplexity=perplexity,
+                n_neighbors=n_neighbors,
+            )
+            return standardize_response(True, result, f"Dimensionality reduction with {technique.upper()} applied successfully")
+        except ValueError as e:
+            return standardize_response(False, error=str(e), status_code=400)
+        except Exception as e:
+            logger.error("Dimensionality reduction upload failed: %s", str(e))
+            return standardize_response(False, error="Dimensionality reduction failed", status_code=500)
+
+    @staticmethod
+    async def apply_pca(dataset_id: str, payload: Dict[str, Any]) -> Any:
+        try:
+            n_components = payload.get("n_components")
+            n_components = int(n_components) if n_components is not None else None
+            scale_data = DatasetController._to_bool(payload.get("scale_data", False), default=False)
+            random_state = payload.get("random_state", 42)
+            random_state = int(random_state) if random_state is not None else None
+
+            result = dataset_service.apply_pca(
+                dataset_id=dataset_id,
+                n_components=n_components,
+                scale_data=scale_data,
+                random_state=random_state,
+            )
+            return standardize_response(True, result, "PCA applied successfully")
+        except ValueError as e:
+            return standardize_response(False, error=str(e), status_code=400)
+        except Exception as e:
+            logger.error("PCA failed: %s", str(e))
+            return standardize_response(False, error="PCA failed", status_code=500)
+
+    @staticmethod
+    async def apply_pca_upload(
+        file: UploadFile,
+        n_components: Optional[int],
+        scale_data: Any,
+        random_state: Optional[int],
+    ) -> Any:
+        if not file or not file.filename:
+            return standardize_response(False, error="No file selected", status_code=400)
+        if not file.filename.lower().endswith(".csv"):
+            return standardize_response(False, error="Only CSV files are supported", status_code=400)
+
+        try:
+            content = await file.read()
+            result = dataset_service.apply_pca_from_upload(
+                filename=file.filename,
+                content=content,
+                n_components=n_components,
+                scale_data=DatasetController._to_bool(scale_data, default=False),
+                random_state=random_state,
+            )
+            return standardize_response(True, result, "PCA applied successfully")
+        except ValueError as e:
+            return standardize_response(False, error=str(e), status_code=400)
+        except Exception as e:
+            logger.error("PCA upload failed: %s", str(e))
+            return standardize_response(False, error="PCA failed", status_code=500)
+

@@ -23,6 +23,14 @@ const portMap: Record<string, string> = {
   sqlite: "",
 };
 
+const buildDefaultQuery = (dbType: "postgresql" | "mysql" | "mssql" | "sqlite", schemaName: string, tableName: string) => {
+  const table = tableName.trim();
+  const schema = schemaName.trim();
+  if (!table) return "SELECT *";
+  if (dbType !== "sqlite" && schema) return `SELECT * FROM ${schema}.${table}`;
+  return `SELECT * FROM ${table}`;
+};
+
 export function DatabaseConnectorsPanel({
   onBack,
   onTestConnection,
@@ -38,7 +46,9 @@ export function DatabaseConnectorsPanel({
   const [schemaName, setSchemaName] = useState("public");
   const [tableName, setTableName] = useState("");
   const [sqlitePath, setSqlitePath] = useState("");
-  const [status, setStatus] = useState<"idle" | "testing" | "ok" | "error">("idle");
+  const [query, setQuery] = useState("SELECT *");
+  const [status, setStatus] = useState<"idle" | "testing" | "importing" | "ok" | "error">("idle");
+  const [errorMessage, setErrorMessage] = useState("");
 
   const payload = useMemo(
     () => ({
@@ -51,12 +61,15 @@ export function DatabaseConnectorsPanel({
       schema: schemaName,
       table: tableName,
       sqlite_path: sqlitePath,
+      query: query.trim() || buildDefaultQuery(dbType, schemaName, tableName),
     }),
-    [dbType, host, port, database, username, password, schemaName, tableName, sqlitePath],
+    [dbType, host, port, database, username, password, schemaName, tableName, sqlitePath, query],
   );
 
   const isSqlite = dbType === "sqlite";
-  const canSubmit = isSqlite ? sqlitePath.trim() !== "" && tableName.trim() !== "" : host.trim() !== "" && database.trim() !== "" && username.trim() !== "" && tableName.trim() !== "";
+  const canSubmit = isSqlite
+    ? sqlitePath.trim() !== "" && tableName.trim() !== ""
+    : host.trim() !== "" && database.trim() !== "" && username.trim() !== "" && tableName.trim() !== "";
 
   const handleDbChange = (value: string) => {
     const next = value as "postgresql" | "mysql" | "mssql" | "sqlite";
@@ -67,6 +80,7 @@ export function DatabaseConnectorsPanel({
     } else if (!schemaName) {
       setSchemaName("public");
     }
+    setQuery((prev) => (prev.trim() ? prev : buildDefaultQuery(next, schemaName, tableName)));
   };
 
   return (
@@ -141,13 +155,47 @@ export function DatabaseConnectorsPanel({
           {!isSqlite && (
             <div className="space-y-2">
               <Label>Schema</Label>
-              <Input value={schemaName} onChange={(e) => setSchemaName(e.target.value)} className="bg-[#1a1a1a] border-[#2a2a2a]" />
+              <Input
+                value={schemaName}
+                onChange={(e) => {
+                  const nextSchema = e.target.value;
+                  setSchemaName(nextSchema);
+                  if (!query.trim() || query.trim().toUpperCase() === "SELECT *" || query.includes("SELECT * FROM")) {
+                    setQuery(buildDefaultQuery(dbType, nextSchema, tableName));
+                  }
+                }}
+                className="bg-[#1a1a1a] border-[#2a2a2a]"
+              />
             </div>
           )}
 
           <div className="space-y-2">
             <Label>Table</Label>
-            <Input value={tableName} onChange={(e) => setTableName(e.target.value)} placeholder="orders" className="bg-[#1a1a1a] border-[#2a2a2a]" />
+            <Input
+              value={tableName}
+              onChange={(e) => {
+                const nextTable = e.target.value;
+                setTableName(nextTable);
+                if (!query.trim() || query.trim().toUpperCase() === "SELECT *" || query.includes("SELECT * FROM")) {
+                  setQuery(buildDefaultQuery(dbType, schemaName, nextTable));
+                }
+              }}
+              placeholder="orders"
+              className="bg-[#1a1a1a] border-[#2a2a2a]"
+            />
+          </div>
+
+          <div className="space-y-2 md:col-span-2">
+            <Label>Query</Label>
+            <textarea
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={buildDefaultQuery(dbType, schemaName, tableName)}
+              className="w-full min-h-20 rounded-md bg-[#1a1a1a] border border-[#2a2a2a] px-3 py-2 text-sm"
+            />
+            <p className="text-xs text-gray-400">
+              Default query: <code>{buildDefaultQuery(dbType, schemaName, tableName)}</code>
+            </p>
           </div>
         </CardContent>
       </Card>
@@ -160,10 +208,12 @@ export function DatabaseConnectorsPanel({
           onClick={async () => {
             try {
               setStatus("testing");
+              setErrorMessage("");
               await onTestConnection?.(payload);
               setStatus("ok");
-            } catch {
+            } catch (error) {
               setStatus("error");
+              setErrorMessage(error instanceof Error ? error.message : "Connection test failed");
             }
           }}
         >
@@ -173,16 +223,31 @@ export function DatabaseConnectorsPanel({
         <Button
           disabled={disabled || !canSubmit}
           className="bg-blue-600 hover:bg-blue-700"
-          onClick={() => onConnectAndImport?.(payload)}
+          onClick={async () => {
+            try {
+              setStatus("importing");
+              setErrorMessage("");
+              await onConnectAndImport?.(payload);
+              setStatus("ok");
+            } catch (error) {
+              setStatus("error");
+              setErrorMessage(error instanceof Error ? error.message : "Database import failed");
+            }
+          }}
         >
           Connect and Import
         </Button>
         {status !== "idle" && (
-          <Badge className={status === "ok" ? "bg-green-500/20 text-green-300 border-green-600/40" : status === "testing" ? "bg-yellow-500/20 text-yellow-300 border-yellow-600/40" : "bg-red-500/20 text-red-300 border-red-600/40"}>
-            {status === "ok" ? "Connection OK" : status === "testing" ? "Testing..." : "Connection failed"}
+          <Badge className={status === "ok" ? "bg-green-500/20 text-green-300 border-green-600/40" : status === "testing" || status === "importing" ? "bg-yellow-500/20 text-yellow-300 border-yellow-600/40" : "bg-red-500/20 text-red-300 border-red-600/40"}>
+            {status === "ok" ? "Connection OK" : status === "testing" ? "Testing..." : status === "importing" ? "Importing..." : "Connection failed"}
           </Badge>
         )}
       </div>
+      {errorMessage && (
+        <div className="rounded-md border border-red-600/40 bg-red-500/10 p-3 text-sm text-red-300">
+          {errorMessage}
+        </div>
+      )}
     </div>
   );
 }

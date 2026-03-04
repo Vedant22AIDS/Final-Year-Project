@@ -12,20 +12,16 @@ interface LeftSidebarProps {
   onVisualizationClick: () => void;
   onDataSummaryClick: () => void;
   onCorrelationAnalysisClick: () => void;
+  onPcaClick?: () => void;
   onMissingValuesClick?: () => void;
   onDatabaseConnectorsClick?: () => void;
   onNormalizationClick?: () => void;
   onOutliersClick?: () => void;
-  onClassBalancingClick?: () => void;
   onSaveProjectClick?: () => void;
   disabled?: boolean;
 
   /* New optional handlers for expanded feature set */
-  onPipelinesClick?: () => void;
   onValidationClick?: () => void;
-  onMonitoringClick?: () => void;
-  onPermissionsClick?: () => void;
-  onCollaborationClick?: () => void;
   onExportClick?: () => void;
 
   /* Text Preprocessing handlers */
@@ -151,20 +147,16 @@ export function LeftSidebar({
   onVisualizationClick,
   onDataSummaryClick,
   onCorrelationAnalysisClick,
+  onPcaClick,
   onMissingValuesClick,
   onDatabaseConnectorsClick,
   onNormalizationClick,
   onOutliersClick,
-  onClassBalancingClick,
   onSaveProjectClick,
   disabled = false,
 
   // new optional handlers (safe defaults used inside)
-  onPipelinesClick,
   onValidationClick,
-  onMonitoringClick,
-  onPermissionsClick,
-  onCollaborationClick,
   onExportClick,
 
   // text preprocessing handlers
@@ -203,16 +195,12 @@ export function LeftSidebar({
   const noop = () => { };
   onQuickImputeClick = onQuickImputeClick ?? handleImputeMissingValues;
   onAdvancedImputationClick = onAdvancedImputationClick ?? onMissingValuesClick ?? noop;
+  onPcaClick = onPcaClick ?? noop;
   onDatabaseConnectorsClick = onDatabaseConnectorsClick ?? noop;
   onOutliersClick = onOutliersClick ?? noop;
-  onClassBalancingClick = onClassBalancingClick ?? noop;
   onSaveProjectClick = onSaveProjectClick ?? noop;
   // ensure handlers exist
-  onPipelinesClick = onPipelinesClick ?? noop;
   onValidationClick = onValidationClick ?? noop;
-  onMonitoringClick = onMonitoringClick ?? noop;
-  onPermissionsClick = onPermissionsClick ?? noop;
-  onCollaborationClick = onCollaborationClick ?? noop;
   onExportClick = onExportClick ?? noop;
 
   // text preprocessing handlers
@@ -257,11 +245,7 @@ export function LeftSidebar({
     aiSuggestions: true,
     saveExport: true,
 
-    pipelines: false,
     validation: false,
-    monitoring: false,
-    accessControl: false,
-    collaboration: false,
     exportDelivery: false,
 
     // Text Preprocessing main section
@@ -295,56 +279,27 @@ export function LeftSidebar({
     cleanData: "text-yellow-400",
     normalization: "text-purple-400",
     outliers: "text-red-400",
-    classBalancing: "text-cyan-400",
     engineerFeatures: "text-teal-400",
     aiSuggestions: "text-indigo-400",
     saveExport: "text-pink-400",
     settings: "text-gray-400",
-    pipelines: "text-violet-400",
     validation: "text-lime-400",
-    monitoring: "text-red-300",
-    permissions: "text-emerald-300",
-    collaboration: "text-fuchsia-400",
     export: "text-indigo-300",
-    textPreprocessing: "text-orange-400",
+    textPreprocessing: "text-emerald-400",
   };
 
   return (
-    <aside
-      className="left-sidebar-pro flex h-full w-full flex-col overflow-hidden bg-gradient-to-b from-[#060606] via-[#050505] to-[#040404]"
-      aria-label="Left sidebar"
-    >
-      {/* Header */}
-      <div className="pt-3 p-2.5 border-b border-[#1a1a1a] bg-[#0a0a0a]">
-        <div className="flex items-center justify-between">
-          <div className="inline-flex items-center gap-2 rounded-lg border border-[#1f2937] bg-[#0f172a]/40 px-2 py-1.5">
-            <span className="text-xs font-semibold text-slate-100">DATABits</span>
-          </div>
-          <span className="text-[10px] font-mono text-slate-400 bg-slate-900/60 px-1.5 py-0.5 rounded border border-slate-700/40">TOOLSET</span>
-        </div>
-        <div className="mt-2 text-[10px] uppercase tracking-[0.12em] text-slate-400">Preprocessing Controls</div>
-        <div className="mt-2 flex items-center gap-3 text-[10px] text-slate-500">
-          <span className="inline-flex items-center gap-1">
-            <span className="h-2 w-2 rounded-full bg-sky-400"></span>
-            Structured
-          </span>
-          <span className="inline-flex items-center gap-1">
-            <span className="h-2 w-2 rounded-full bg-emerald-400"></span>
-            Unstructured
-          </span>
-        </div>
-      </div>
-
-      <ScrollArea className="flex-1">
-        <div className="p-2.5">
+    <aside className="h-full w-[300px] bg-[#0b0b0b] text-slate-100 border-r border-[#151515] flex flex-col">
+      <ScrollArea className="flex-1 p-2">
+        <div className="space-y-1">
           {/* Import Data */}
           <CollapsibleSection
             title="Import Data"
             icon={
               <svg className={`h-4 w-4 ${iconColors.importData}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                <polyline points="17 8 12 3 7 8" />
-                <line x1="12" x2="12" y1="3" y2="15" />
+                <path d="M12 3v12" />
+                <path d="M7 10l5 5 5-5" />
+                <path d="M5 21h14" />
               </svg>
             }
             isOpen={openSections.importData}
@@ -352,45 +307,30 @@ export function LeftSidebar({
             disabled={disabled}
             collapsed={collapsed}
           >
-            <button
-              className={`w-full text-left px-2.5 py-1.5 text-xs rounded-md border border-transparent transition-colors text-slate-300 ${disabled ? "opacity-50 cursor-not-allowed" : "hover:bg-[#111827] hover:border-[#1f2937]"
-                }`}
-              onClick={() => !disabled && document.getElementById("fileUpload")?.click()}
-              disabled={disabled}
+            <label
+              className={`w-full block text-left px-2 py-1 text-xs rounded-md ${disabled ? "opacity-50 cursor-not-allowed" : "hover:bg-[#1e1e1e] cursor-pointer"}`}
             >
               <span className="inline-flex items-center gap-2">
                 <span className="h-2 w-2 rounded-full bg-sky-400"></span>
-                Import CSV / Excel
+                Upload file
               </span>
-            </button>
-            <input
-              type="file"
-              id="fileUpload"
-              accept=".csv,.xlsx,.xls"
-              onChange={handleFileUpload}
-              className="hidden"
-              disabled={disabled}
-            />
-            <button className={`w-full text-left px-2.5 py-1.5 text-xs rounded-md border border-transparent transition-colors text-slate-300 ${disabled ? "opacity-50" : "hover:bg-[#111827] hover:border-[#1f2937]"}`} title="Connect a database (JDBC, Postgres, MySQL)" onClick={onDatabaseConnectorsClick} disabled={disabled}>
+              <input
+                type="file"
+                className="hidden"
+                onChange={handleFileUpload}
+                disabled={disabled}
+              />
+            </label>
+            <button className={`w-full text-left px-2 py-1 text-xs rounded-md ${disabled ? "opacity-50 cursor-not-allowed" : "hover:bg-[#1e1e1e]"}`} onClick={onDatabaseConnectorsClick} disabled={disabled}>
               <span className="inline-flex items-center gap-2">
                 <span className="h-2 w-2 rounded-full bg-sky-400"></span>
-                Database connectors
+                Connect database
               </span>
             </button>
-            <button className={`w-full text-left px-2.5 py-1.5 text-xs rounded-md border border-transparent transition-colors text-slate-300 ${disabled ? "opacity-50" : "hover:bg-[#111827] hover:border-[#1f2937]"}`} onClick={() => window.alert("S3 / GCS connectors - configure in Integrations")} disabled={disabled}>
+            <button className={`w-full text-left px-2 py-1 text-xs rounded-md ${disabled ? "opacity-50 cursor-not-allowed" : "hover:bg-[#1e1e1e]"}`} onClick={onImportTextDataClick} disabled={disabled}>
               <span className="inline-flex items-center gap-2">
                 <span className="h-2 w-2 rounded-full bg-sky-400"></span>
-                Cloud storage connectors
-              </span>
-            </button>
-            <button
-              className={`w-full text-left px-2.5 py-1.5 text-xs rounded-md border border-transparent transition-colors text-slate-300 ${disabled ? "opacity-50" : "hover:bg-[#111827] hover:border-[#1f2937]"}`}
-              onClick={onImportTextDataClick}
-              disabled={disabled}
-            >
-              <span className="inline-flex items-center gap-2">
-                <span className="h-2 w-2 rounded-full bg-emerald-400"></span>
-                Import unstructured data
+                Import text data
               </span>
             </button>
           </CollapsibleSection>
@@ -428,28 +368,11 @@ export function LeftSidebar({
                 Correlation analysis
               </span>
             </button>
-          </CollapsibleSection>
-
-          {/* Pipelines & Templates */}
-          <CollapsibleSection
-            title="Pipelines & Templates"
-            icon={
-              <svg className={`h-4 w-4 ${iconColors.pipelines}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M3 6h18" />
-                <path d="M3 12h18" />
-                <path d="M3 18h18" />
-              </svg>
-            }
-            isOpen={openSections.pipelines}
-            onToggle={() => toggleSection("pipelines")}
-            disabled={disabled}
-            collapsed={collapsed}
-          >
-            <button className={`w-full text-left px-2 py-1 text-xs rounded-md ${disabled ? "opacity-50" : "hover:bg-[#1e1e1e]"}`} onClick={onPipelinesClick} disabled={disabled}>
-              Open pipelines editor
-            </button>
-            <button className={`w-full text-left px-2 py-1 text-xs rounded-md ${disabled ? "opacity-50" : "hover:bg-[#1e1e1e]"}`} onClick={() => alert("Clone pipeline")} disabled={disabled}>
-              Clone pipeline
+            <button className={`w-full text-left px-2 py-1 text-xs rounded-md ${disabled || !hasStructuredData ? "opacity-50 cursor-not-allowed" : "hover:bg-[#1e1e1e]"}`} onClick={onPcaClick} disabled={disabled || !hasStructuredData}>
+              <span className="inline-flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full bg-sky-400"></span>
+                PCA / DR
+              </span>
             </button>
           </CollapsibleSection>
 
@@ -501,84 +424,7 @@ export function LeftSidebar({
               </span>
             </button>
           </CollapsibleSection>
-                    {/* Normalization */}
-          <div className={collapsed ? "flex justify-center mb-1" : ""}>
-            <button
-              className={`w-full flex items-center ${collapsed ? "justify-center" : "justify-start"} px-2 py-1.5 text-sm font-medium rounded-md transition-colors ${disabled || !hasStructuredData ? "opacity-50 cursor-not-allowed" : "hover:bg-[#1e1e1e]"
-                }`}
-              onClick={onNormalizationClick ?? noop}
-              disabled={disabled || !hasStructuredData}
-              title={collapsed ? "Normalize, encode, scale" : undefined}
-            >
-              <svg className={`h-4 w-4 ${iconColors.normalization}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M18.5 2h-13A2.5 2.5 0 0 0 3 4.5v15A2.5 2.5 0 0 0 5.5 22h13a2.5 2.5 0 0 0 2.5-2.5v-15A2.5 2.5 0 0 0 18.5 2z" />
-                <path d="M7 12h10" />
-                <path d="M12 17V7" />
-              </svg>
-              {!collapsed && (
-                <span className="ml-2 inline-flex items-center gap-2">
-                  <span className="h-2 w-2 rounded-full bg-sky-400"></span>
-                  Normalize & encode
-                </span>
-              )}
-            </button>
-          </div>
 
-          {/* Outliers */}
-          <div className={collapsed ? "flex justify-center mb-1" : ""}>
-            <button
-              className={`w-full flex items-center ${collapsed ? "justify-center" : "justify-start"} px-2 py-1.5 text-sm font-medium rounded-md transition-colors ${disabled || !hasStructuredData ? "opacity-50 cursor-not-allowed" : "hover:bg-[#1e1e1e]"
-                }`}
-              onClick={onOutliersClick}
-              disabled={disabled || !hasStructuredData}
-              title={collapsed ? "Remove outliers" : undefined}
-            >
-              <svg className={`h-4 w-4 ${iconColors.outliers}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z" />
-              </svg>
-              {!collapsed && (
-                <span className="ml-2 inline-flex items-center gap-2">
-                  <span className="h-2 w-2 rounded-full bg-sky-400"></span>
-                  Remove outliers
-                </span>
-              )}
-            </button>
-          </div>
-
-          {/* Class Balancing */}
-          <div className={collapsed ? "flex justify-center mb-1" : ""}>
-            <button
-              className={`w-full flex items-center ${
-                collapsed ? "justify-center" : "justify-start"
-              } px-2 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                disabled || !hasStructuredData
-                  ? "opacity-50 cursor-not-allowed"
-                  : "hover:bg-[#1e1e1e]"
-              }`}
-              onClick={onClassBalancingClick}
-              disabled={disabled || !hasStructuredData}
-              title={collapsed ? "Balance class distribution" : undefined}
-            >
-              <svg
-                className={`h-4 w-4 ${iconColors.classBalancing}`}
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
-                <path d="M4 6h16" />
-                <path d="M4 12h10" />
-                <path d="M4 18h7" />
-              </svg>
-
-              {!collapsed && (
-                <span className="ml-2 inline-flex items-center gap-2">
-                  <span className="h-2 w-2 rounded-full bg-cyan-400"></span>
-                  Balance classes
-                </span>
-              )}
-            </button>
-          </div>
           {/* Text Preprocessing for Unstructured Data */}
           <CollapsibleSection
             title="Text Preprocessing"
@@ -663,94 +509,77 @@ export function LeftSidebar({
               </button>
             </div>
 
-            {/* Subtab 7: Label & Encoding */}
-            <div className="mb-1">
-              <button
-                onClick={onLabelEncodingClick}
-                className={`w-full text-left px-2 py-1 text-xs rounded-md transition-colors ${disabled || !hasUnstructuredData ? "opacity-50 cursor-not-allowed" : "hover:bg-[#1e1e1e]"}`}
-                disabled={disabled || !hasUnstructuredData}
-              >
-                <span className="inline-flex items-center gap-2">
-                  <span className="h-2 w-2 rounded-full bg-emerald-400"></span>
+
+
+
+          </CollapsibleSection>
+
+          {/* Normalization */}
+          <div className={collapsed ? "flex justify-center mb-1" : ""}>
+            <button
+              className={`w-full flex items-center ${collapsed ? "justify-center" : "justify-start"} px-2 py-1.5 text-sm font-medium rounded-md transition-colors ${disabled || !hasStructuredData ? "opacity-50 cursor-not-allowed" : "hover:bg-[#1e1e1e]"
+                }`}
+              onClick={onNormalizationClick ?? noop}
+              disabled={disabled || !hasStructuredData}
+              title={collapsed ? "Normalize, encode, scale" : undefined}
+            >
+              <svg className={`h-4 w-4 ${iconColors.normalization}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M18.5 2h-13A2.5 2.5 0 0 0 3 4.5v15A2.5 2.5 0 0 0 5.5 22h13a2.5 2.5 0 0 0 2.5-2.5v-15A2.5 2.5 0 0 0 18.5 2z" />
+                <path d="M7 12h10" />
+                <path d="M12 17V7" />
+              </svg>
+              {!collapsed && (
+                <span className="ml-2 inline-flex items-center gap-2">
+                  <span className="h-2 w-2 rounded-full bg-sky-400"></span>
+                  Normalize & encode
+                </span>
+              )}
+            </button>
+          </div>
+
+          {/* Label & Encoding */}
+          <div className={collapsed ? "flex justify-center mb-1" : ""}>
+            <button
+              className={`w-full flex items-center ${collapsed ? "justify-center" : "justify-start"} px-2 py-1.5 text-sm font-medium rounded-md transition-colors ${disabled || !hasStructuredData ? "opacity-50 cursor-not-allowed" : "hover:bg-[#1e1e1e]"
+                }`}
+              onClick={onLabelEncodingClick}
+              disabled={disabled || !hasStructuredData}
+              title={collapsed ? "Label & Encoding" : undefined}
+            >
+              <svg className={`h-4 w-4 ${iconColors.normalization}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20z" />
+                <path d="M12 6v12" />
+                <path d="M6 12h12" />
+              </svg>
+              {!collapsed && (
+                <span className="ml-2 inline-flex items-center gap-2">
+                  <span className="h-2 w-2 rounded-full bg-sky-400"></span>
                   Label & Encoding
                 </span>
-              </button>
-            </div>
+              )}
+            </button>
+          </div>
 
-
-          </CollapsibleSection>
-
-
-
-          {/* Monitoring & Alerts */}
-          <CollapsibleSection
-            title="Monitoring & Alerts"
-            icon={
-              <svg className={`h-4 w-4 ${iconColors.monitoring}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M3 12h3l3 8 4-16 3 8h3" />
+          {/* Outliers */}
+          <div className={collapsed ? "flex justify-center mb-1" : ""}>
+            <button
+              className={`w-full flex items-center ${collapsed ? "justify-center" : "justify-start"} px-2 py-1.5 text-sm font-medium rounded-md transition-colors ${disabled || !hasStructuredData ? "opacity-50 cursor-not-allowed" : "hover:bg-[#1e1e1e]"
+                }`}
+              onClick={onOutliersClick}
+              disabled={disabled || !hasStructuredData}
+              title={collapsed ? "Remove outliers" : undefined}
+            >
+              <svg className={`h-4 w-4 ${iconColors.outliers}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z" />
               </svg>
-            }
-            isOpen={openSections.monitoring}
-            onToggle={() => toggleSection("monitoring")}
-            disabled={disabled}
-            collapsed={collapsed}
-          >
-            <button className={`w-full text-left px-2 py-1 text-xs rounded-md ${disabled ? "opacity-50" : "hover:bg-[#1e1e1e]"}`} onClick={onMonitoringClick} disabled={disabled}>
-              Alerts & notifications
+              {!collapsed && (
+                <span className="ml-2 inline-flex items-center gap-2">
+                  <span className="h-2 w-2 rounded-full bg-sky-400"></span>
+                  Remove outliers
+                </span>
+              )}
             </button>
-            <button className={`w-full text-left px-2 py-1 text-xs rounded-md ${disabled ? "opacity-50" : "hover:bg-[#1e1e1e]"}`} onClick={() => alert("Create monitor")} disabled={disabled}>
-              Create monitors
-            </button>
-            <button className={`w-full text-left px-2 py-1 text-xs rounded-md ${disabled ? "opacity-50" : "hover:bg-[#1e1e1e]"}`} onClick={() => alert("Incident history")} disabled={disabled}>
-              Incident history
-            </button>
-          </CollapsibleSection>
-
-          {/* Access Control */}
-          <CollapsibleSection
-            title="Access & Permissions"
-            icon={
-              <svg className={`h-4 w-4 ${iconColors.permissions}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M12 2a7 7 0 0 1 7 7v3" />
-                <path d="M21 17v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-2" />
-              </svg>
-            }
-            isOpen={openSections.accessControl}
-            onToggle={() => toggleSection("accessControl")}
-            disabled={disabled}
-            collapsed={collapsed}
-          >
-            <button className={`w-full text-left px-2 py-1 text-xs rounded-md ${disabled ? "opacity-50" : "hover:bg-[#1e1e1e]"}`} onClick={onPermissionsClick} disabled={disabled}>
-              Roles & RBAC
-            </button>
-            <button className={`w-full text-left px-2 py-1 text-xs rounded-md ${disabled ? "opacity-50" : "hover:bg-[#1e1e1e]"}`} onClick={() => alert("Invite member")} disabled={disabled}>
-              Invite & audit
-            </button>
-          </CollapsibleSection>
-
-          {/* Collaboration */}
-          <CollapsibleSection
-            title="Collaboration"
-            icon={
-              <svg className={`h-4 w-4 ${iconColors.collaboration}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M17 21v-2a4 4 0 0 0-4-4H7" />
-                <circle cx="9" cy="7" r="4" />
-                <path d="M20 8v6" />
-                <path d="M23 11h-6" />
-              </svg>
-            }
-            isOpen={openSections.collaboration}
-            onToggle={() => toggleSection("collaboration")}
-            disabled={disabled}
-            collapsed={collapsed}
-          >
-            <button className={`w-full text-left px-2 py-1 text-xs rounded-md ${disabled ? "opacity-50" : "hover:bg-[#1e1e1e]"}`} onClick={onCollaborationClick} disabled={disabled}>
-              Comments & notes
-            </button>
-            <button className={`w-full text-left px-2 py-1 text-xs rounded-md ${disabled ? "opacity-50" : "hover:bg-[#1e1e1e]"}`} onClick={() => alert("Share snapshot")} disabled={disabled}>
-              Share snapshot
-            </button>
-          </CollapsibleSection>
+          </div>
 
           {/* Save & Export */}
           <CollapsibleSection
