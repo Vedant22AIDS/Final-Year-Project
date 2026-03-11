@@ -9,7 +9,7 @@ import { TopNavbar } from "./Top-navbar.tsx"
 import { LoadingOverlay } from "../components/ui/loading-overlay.tsx"
 import { ScrollArea } from "../components/ui/ScrollArea.tsx"
 import { useApi } from "../hooks/use-api.ts"
-import type { DatabaseConnectorPayload } from "../hooks/use-api.ts"
+import type { AutoCleaningResponse, DatabaseConnectorPayload } from "../hooks/use-api.ts"
 import type { DimensionalityReductionResponse } from "../hooks/use-api.ts"
 import type { CleaningOption } from "../features/text-preprocessing/basic-cleaning.tsx"
 import type { TextNormalizationConfig } from "../features/text-preprocessing/normalization-panel.tsx"
@@ -247,17 +247,20 @@ export function DataPreprocessingApp() {
     mean: "0",
     categories: "0",
   })
+  const [classImbalance, setClassImbalance] = useState<any>(null);
   const [analysisMode, setAnalysisMode] = useState<
     | "overview"
     | "visualization"
     | "summary"
     | "correlation"
-    | "imbalance"
+    // | "imbalance"
     | "pca"
     | "missing-values-advanced"
     | "missing-values-quick"
     | "normalization"
     | "outliers"
+    | "class-balancing"
+    | "auto-cleaning-report"
     | "database-connectors"
     | "validation"
     | "text-preprocessing-basic-cleaning"
@@ -280,6 +283,8 @@ export function DataPreprocessingApp() {
   const [summaryData, setSummaryData] = useState<any>(null)
   const [datasetSummary, setDatasetSummary] = useState<any>(null)
   const [correlationData, setCorrelationData] = useState<any>(null)
+  const [autoCleaningData, setAutoCleaningData] = useState<AutoCleaningResponse | null>(null)
+  const [autoCleaningLoading, setAutoCleaningLoading] = useState(false)
   const [appliedDimensionality, setAppliedDimensionality] = useState<AppliedDimensionality | null>(null)
   const [appliedImbalance, setAppliedImbalance] = useState<AppliedImbalance | null>(null)
   const [logs, setLogs] = useState<LogEntry[]>([])
@@ -381,6 +386,7 @@ export function DataPreprocessingApp() {
     setSummaryData(null)
     setDatasetSummary(null)
     setCorrelationData(null)
+    setAutoCleaningData(null)
     setAppliedDimensionality(null)
     setAppliedImbalance(null)
     try {
@@ -407,6 +413,9 @@ export function DataPreprocessingApp() {
       setDataKind("structured")
 
       updateDataFromSummary(result.summary)
+
+      setProcessingStatus({ status: "processing", progress: 80, message: "Running automated data cleaning..." })
+      await runAutoCleaningForDataset(result.dataset_id, true)
 
       setProcessingStatus({ status: "completed", progress: 100, message: "File uploaded successfully" })
 
@@ -501,6 +510,50 @@ export function DataPreprocessingApp() {
       return false
     }
     return true
+  }
+
+  const runAutoCleaningForDataset = async (targetDatasetId: string, autoTriggered = false) => {
+    try {
+      setAutoCleaningLoading(true)
+      const result = await api.runAutoCleaning(targetDatasetId)
+
+      setAutoCleaningData(result)
+      setTableData(result.cleaned_sample || [])
+      if (result.cleaned_summary) {
+        updateDataFromSummary(result.cleaned_summary)
+      }
+      setLastActiveTab("")
+      setAnalysisMode("auto-cleaning-report")
+
+      addLog({
+        title: autoTriggered ? "Auto Cleaning Completed" : "Run Auto Cleaning",
+        date: new Date().toLocaleString(),
+        details: `Quality score: ${result.report?.quality_score ?? 0}, duplicates removed: ${result.pipeline_output?.duplicates_removed ?? 0}`,
+        type: "info",
+      })
+
+      if (autoTriggered) {
+        toast.success("Automated cleaning completed")
+      } else {
+        toast.success("Dataset quality report generated")
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Auto cleaning failed"
+      addLog({
+        title: "Auto Cleaning Error",
+        date: new Date().toLocaleString(),
+        details: errorMessage,
+        type: "error",
+      })
+      toast.error(errorMessage)
+    } finally {
+      setAutoCleaningLoading(false)
+    }
+  }
+
+  const handleAutoCleaningClick = async () => {
+    if (!ensureStructuredData()) return
+    await runAutoCleaningForDataset(datasetId!, false)
   }
 
   const handleProcessingOperation = async (
@@ -612,7 +665,7 @@ export function DataPreprocessingApp() {
     try {
       setProcessingStatus({ status: "processing", progress: 50, message: "Generating data summary..." })
 
-      const summaryRaw = await api.getDatasetSummary(datasetId)
+      const summaryRaw = await api.getDatasetSummary(datasetId!)
       // Add a type assertion to ensure summary is typed
       const summary = summaryRaw as {
         shape?: [number, number]
@@ -723,7 +776,7 @@ export function DataPreprocessingApp() {
     try {
       setProcessingStatus({ status: "processing", progress: 50, message: "Analyzing correlations..." })
 
-      const correlationRaw = await api.getCorrelationAnalysis(datasetId)
+      const correlationRaw = await api.getCorrelationAnalysis(datasetId!)
       const correlation = correlationRaw as { numericalColumns?: any[] }
       setCorrelationData(correlation)
       setAnalysisMode("correlation")
@@ -836,7 +889,7 @@ export function DataPreprocessingApp() {
         setProcessingStatus({ status: "idle", progress: 0, message: "" })
       }, 1500)
 
-      return { cleanedText: cleaned }
+      //return { cleanedText: cleaned }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Basic cleaning failed"
       setProcessingStatus({ status: "error", progress: 0, message: errorMessage })
@@ -903,7 +956,7 @@ export function DataPreprocessingApp() {
         setProcessingStatus({ status: "idle", progress: 0, message: "" })
       }, 1500)
 
-      return result
+      //return result
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Tokenization failed"
       setProcessingStatus({ status: "error", progress: 0, message: errorMessage })
@@ -933,7 +986,7 @@ export function DataPreprocessingApp() {
     });
   };
 
-  const handleFilteringApply = async ({ removeStopWords, minWordLength }: FilteringConfig) => {
+  const handleFilteringApply = async ({ removeStopWords, minWordLength }: FilteringConfig): Promise<void> => {
     if (!ensureUnstructuredData()) return
 
     const sourceText = unstructuredData!.text
@@ -973,7 +1026,7 @@ export function DataPreprocessingApp() {
         setProcessingStatus({ status: "idle", progress: 0, message: "" })
       }, 1500)
 
-      return result
+      //return result
     } catch (error) {
       const local = filterTextLocally(sourceText, removeStopWords, minWordLength)
 
@@ -1004,7 +1057,7 @@ export function DataPreprocessingApp() {
     }
   }
 
-  const handleTextNormalizationApply = async ({ method, stemmingAlgorithm }: TextNormalizationConfig) => {
+  const handleTextNormalizationApply = async ({ method, stemmingAlgorithm }: TextNormalizationConfig): Promise<void> => {
     if (!ensureUnstructuredData()) return
 
     const sourceText = unstructuredData!.text
@@ -1041,7 +1094,7 @@ export function DataPreprocessingApp() {
         setProcessingStatus({ status: "idle", progress: 0, message: "" })
       }, 1500)
 
-      return result
+      //return result
     } catch (error) {
       const local = normalizeTextLocally(sourceText, method, stemmingAlgorithm)
       setUnstructuredData({
@@ -1088,7 +1141,7 @@ export function DataPreprocessingApp() {
   const getFeatureExtractionDownloadName = () =>
     `${(unstructuredData?.fileName || fileName || "text").replace(/\.[^/.]+$/, "")}_feature_extraction.json`
 
-  const handleFeatureExtractionApply = async ({ method, maxFeatures, ngramRange, vectorSize }: FeatureExtractionConfig) => {
+  const handleFeatureExtractionApply = async ({ method, maxFeatures, ngramRange, vectorSize }: FeatureExtractionConfig):Promise<void> => {
     if (!ensureUnstructuredData()) return
 
     try {
@@ -1111,7 +1164,7 @@ export function DataPreprocessingApp() {
         setProcessingStatus({ status: "idle", progress: 0, message: "" })
       }, 1500)
 
-      return { result: payload }
+      //return { result: payload }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Feature extraction failed"
       const fallbackPayload = buildFeatureExtractionFallback(unstructuredData!.text, method, maxFeatures, vectorSize)
@@ -1128,7 +1181,7 @@ export function DataPreprocessingApp() {
       setTimeout(() => {
         setProcessingStatus({ status: "idle", progress: 0, message: "" })
       }, 1500)
-      return { result: fallbackPayload }
+      //return { result: fallbackPayload }
     }
   }
 
@@ -1183,7 +1236,7 @@ export function DataPreprocessingApp() {
     try {
       setProcessingStatus({ status: "processing", progress: 50, message: "Preparing export..." })
 
-      const { blob, filename } = await api.exportDataset(datasetId)
+      const { blob, filename } = await api.exportDataset(datasetId!)
       downloadBlob(blob, filename || `processed_${fileName || "data"}.csv`)
 
       setProcessingStatus({ status: "completed", progress: 100, message: "File exported successfully!" })
@@ -1305,24 +1358,24 @@ export function DataPreprocessingApp() {
         }
       }
 
-      if (imbalanceArtifact?.downloadId) {
-        setProcessingStatus({ status: "processing", progress: 50, message: "Saving imbalance output CSV..." })
-        const { blob, filename } = await api.downloadImbalanceOutput(imbalanceArtifact.downloadId)
-        const resolvedName = filename || imbalanceArtifact.outputFile || `imbalance_${imbalanceArtifact.technique}.csv`
-        downloadBlob(blob, resolvedName)
-        setProcessingStatus({ status: "completed", progress: 100, message: "Imbalance CSV saved successfully!" })
-        addLog({
-          title: "Project Saved",
-          date: new Date().toLocaleString(),
-          details: `Saved imbalance output as ${resolvedName}.`,
-          type: "info",
-        })
-        toast.success("Saved imbalance output CSV")
-        setTimeout(() => {
-          setProcessingStatus({ status: "idle", progress: 0, message: "" })
-        }, 1500)
-        return
-      }
+      // if (imbalanceArtifact?.downloadId) {
+      //   setProcessingStatus({ status: "processing", progress: 50, message: "Saving imbalance output CSV..." })
+      //   const { blob, filename } = await api.downloadImbalanceOutput(imbalanceArtifact.downloadId)
+      //   const resolvedName = filename || imbalanceArtifact.outputFile || `imbalance_${imbalanceArtifact.technique}.csv`
+      //   downloadBlob(blob, resolvedName)
+      //   setProcessingStatus({ status: "completed", progress: 100, message: "Imbalance CSV saved successfully!" })
+      //   addLog({
+      //     title: "Project Saved",
+      //     date: new Date().toLocaleString(),
+      //     details: `Saved imbalance output as ${resolvedName}.`,
+      //     type: "info",
+      //   })
+      //   toast.success("Saved imbalance output CSV")
+      //   setTimeout(() => {
+      //     setProcessingStatus({ status: "idle", progress: 0, message: "" })
+      //   }, 1500)
+      //   return
+      // }
 
       let drArtifact = appliedDimensionality
       if (!drArtifact) {
@@ -1340,36 +1393,36 @@ export function DataPreprocessingApp() {
         }
       }
 
-      if (drArtifact?.downloadId) {
-        setProcessingStatus({ status: "processing", progress: 50, message: "Saving transformed CSV..." })
+      // if (drArtifact?.downloadId) {
+      //   setProcessingStatus({ status: "processing", progress: 50, message: "Saving transformed CSV..." })
 
-        const { blob, filename } = await api.downloadDimensionalityReduction(drArtifact.downloadId)
-        const resolvedName =
-          filename || drArtifact.outputFile || `transformed_${drArtifact.technique}.csv`
-        downloadBlob(blob, resolvedName)
+      //   const { blob, filename } = await api.downloadDimensionalityReduction(drArtifact.downloadId)
+      //   const resolvedName =
+      //     filename || drArtifact.outputFile || `transformed_${drArtifact.technique}.csv`
+      //   downloadBlob(blob, resolvedName)
 
-        setProcessingStatus({ status: "completed", progress: 100, message: "Transformed CSV saved successfully!" })
-        addLog({
-          title: "Project Saved",
-          date: new Date().toLocaleString(),
-          details: `Saved transformed ${drArtifact.technique.toUpperCase()} file as ${resolvedName}.`,
-          type: "info",
-        })
-        toast.success(`Saved ${drArtifact.technique.toUpperCase()} output`)
-        setTimeout(() => {
-          setProcessingStatus({ status: "idle", progress: 0, message: "" })
-        }, 1500)
-        return
-      }
+      //   setProcessingStatus({ status: "completed", progress: 100, message: "Transformed CSV saved successfully!" })
+      //   addLog({
+      //     title: "Project Saved",
+      //     date: new Date().toLocaleString(),
+      //     details: `Saved transformed ${drArtifact.technique.toUpperCase()} file as ${resolvedName}.`,
+      //     type: "info",
+      //   })
+      //   toast.success(`Saved ${drArtifact.technique.toUpperCase()} output`)
+      //   setTimeout(() => {
+      //     setProcessingStatus({ status: "idle", progress: 0, message: "" })
+      //   }, 1500)
+      //   return
+      // }
 
       if (analysisMode === "pca") {
         toast.error("Run a PCA/SVD/t-SNE/UMAP technique first, then Save Project")
         return
       }
-      if (analysisMode === "imbalance") {
-        toast.error("Run imbalance handling first, then Save Project")
-        return
-      }
+      // if (analysisMode === "imbalance") {
+      //   toast.error("Run imbalance handling first, then Save Project")
+      //   return
+      // }
 
       const history = datasetId ? await api.getProcessingHistory(datasetId) : { operations: [] }
       const projectPayload = {
@@ -1468,7 +1521,31 @@ export function DataPreprocessingApp() {
       `Missing values handled using ${strategy} strategy for ${columns.length} columns`,
     )
   }
+  const handleCheckClassImbalance = async (target: string) => {
+  if (!ensureStructuredData()) return;
+  if (!datasetId) {
+    toast.error("No dataset loaded");
+    return;
+  }
 
+  try {
+    setProcessingStatus({ status: "processing", progress: 10, message: "Checking class imbalance..." });
+
+    // use the generic api.apiCall (useApi exposes apiCall)
+    // endpoint path depends on your backend — adjust `/imbalance` path if needed
+    const res = await api.apiCall<any>(`/dataset/${datasetId}/imbalance?target=${encodeURIComponent(target)}`);
+    setClassImbalance(res);
+
+    toast.success("Class imbalance stats received");
+    setProcessingStatus({ status: "completed", progress: 100, message: "Imbalance check complete" });
+    setTimeout(() => setProcessingStatus({ status: "idle", progress: 0, message: "" }), 1200);
+  } catch (err) {
+    console.error("Imbalance check failed:", err);
+    toast.error((err as any)?.message ?? "Imbalance check failed");
+    setProcessingStatus({ status: "error", progress: 0, message: "Imbalance check failed" });
+    setTimeout(() => setProcessingStatus({ status: "idle", progress: 0, message: "" }), 2000);
+  }
+};
   const handleQuickImputeApply = (strategy: string, fillValue?: string) => {
     if (!ensureStructuredData()) return
     handleProcessingOperation(
@@ -1527,6 +1604,38 @@ export function DataPreprocessingApp() {
       `Outliers removed using ${method} method for ${columns.length} columns`,
     )
   }
+  const handleClassBalancingClick = () => {
+  if (!ensureStructuredData()) return
+
+  setAnalysisMode("class-balancing")
+
+  addLog({
+    title: "Class Balancing Panel",
+    date: new Date().toLocaleString(),
+    details: "Opened class balancing panel.",
+    type: "info",
+  })
+}
+type BalancingMethod =
+  | "random_over"
+  | "random_under"
+  | "smote"
+  | "smote_tomek"
+  | "class_weight"
+
+const handleClassBalancingApply = (
+  target: string,
+  method: BalancingMethod
+) => {
+  if (!datasetId) return
+  if (!ensureStructuredData()) return
+
+  handleProcessingOperation(
+    () => api.applyClassBalancing(datasetId!, target, method),
+    "Class Balancing",
+    `Class balancing applied using ${method} on target "${target}"`
+  )
+}
 
   const handleDatabaseConnectorsClick = () => {
     setAnalysisMode("database-connectors")
@@ -1582,16 +1691,16 @@ export function DataPreprocessingApp() {
     })
   }
 
-  const handleImbalanceClick = () => {
-    if (!ensureStructuredData()) return
-    setAnalysisMode("imbalance")
-    addLog({
-      title: "Imbalance Handling",
-      date: new Date().toLocaleString(),
-      details: "Opened standalone imbalance handling tab.",
-      type: "info",
-    })
-  }
+  // const handleImbalanceClick = () => {
+  //   if (!ensureStructuredData()) return
+  //   setAnalysisMode("imbalance")
+  //   addLog({
+  //     title: "Imbalance Handling",
+  //     date: new Date().toLocaleString(),
+  //     details: "Opened standalone imbalance handling tab.",
+  //     type: "info",
+  //   })
+  // }
 
   const handleDimensionalityApplied = (result: DimensionalityReductionResponse) => {
     if (!result?.download_id) return
@@ -1614,25 +1723,25 @@ export function DataPreprocessingApp() {
     })
   }
 
-  const handleImbalanceApplied = (result: { technique: string; downloadId: string; outputFile: string }) => {
-    const applied = {
-      technique: result.technique,
-      downloadId: result.downloadId,
-      outputFile: result.outputFile,
-    }
-    setAppliedImbalance(applied)
-    try {
-      sessionStorage.setItem(APPLIED_IMBALANCE_STORAGE_KEY, JSON.stringify(applied))
-    } catch {
-      // ignore storage errors
-    }
-    addLog({
-      title: "Imbalance Handling Applied",
-      date: new Date().toLocaleString(),
-      details: `${result.technique} applied. Save Project will download ${result.outputFile}.`,
-      type: "info",
-    })
-  }
+  // const handleImbalanceApplied = (result: { technique: string; downloadId: string; outputFile: string }) => {
+  //   const applied = {
+  //     technique: result.technique,
+  //     downloadId: result.downloadId,
+  //     outputFile: result.outputFile,
+  //   }
+  //   setAppliedImbalance(applied)
+  //   try {
+  //     sessionStorage.setItem(APPLIED_IMBALANCE_STORAGE_KEY, JSON.stringify(applied))
+  //   } catch {
+  //     // ignore storage errors
+  //   }
+  //   addLog({
+  //     title: "Imbalance Handling Applied",
+  //     date: new Date().toLocaleString(),
+  //     details: `${result.technique} applied. Save Project will download ${result.outputFile}.`,
+  //     type: "info",
+  //   })
+  // }
 
   const handleDatabaseConnectImport = async (payload: DatabaseConnectorPayload) => {
     try {
@@ -1648,6 +1757,7 @@ export function DataPreprocessingApp() {
       setTokenizationBaseText("")
       setSummaryData(null)
       setCorrelationData(null)
+      setAutoCleaningData(null)
       setAppliedDimensionality(null)
       setAppliedImbalance(null)
       try {
@@ -1663,6 +1773,7 @@ export function DataPreprocessingApp() {
       setLastActiveTab("")
 
       updateDataFromSummary(result.summary)
+      await runAutoCleaningForDataset(result.dataset_id, true)
       setAnalysisMode("overview")
 
       setProcessingStatus({ status: "completed", progress: 100, message: "Database data imported successfully" })
@@ -1766,10 +1877,12 @@ export function DataPreprocessingApp() {
             onDataSummaryClick={handleDataSummaryClick}
             onCorrelationAnalysisClick={handleCorrelationAnalysisClick}
             onPcaClick={handlePcaClick}
-            onImbalanceClick={handleImbalanceClick}
+            //onImbalanceClick={handleImbalanceClick}
             onMissingValuesClick={handleAdvancedImputationClick}
             onQuickImputeClick={handleQuickImputeClick}
+            onAutoCleaningClick={handleAutoCleaningClick}
             onOutliersClick={handleOutliersClick}
+            onClassBalancingClick={handleClassBalancingClick}
             onExportClick={handleExportFile}
             onSaveProjectClick={handleSaveProject}
             onNormalizationClick={handleNormalizationClick}
@@ -1812,6 +1925,8 @@ export function DataPreprocessingApp() {
               onNormalizationApply={handleNormalizationApply}
               onEncodingApply={handleEncodingApply}
               onOutlierRemovalApply={handleOutlierRemovalApply}
+              onClassBalancingApply={handleClassBalancingApply}
+              onAutoCleaningRun={handleAutoCleaningClick}
               onDatabaseConnectionTest={handleDatabaseConnectionTest}
               onDatabaseConnectImport={handleDatabaseConnectImport}
               onUnstructuredImport={handleUnstructuredImport}
@@ -1821,8 +1936,12 @@ export function DataPreprocessingApp() {
               onTextNormalizationApply={handleTextNormalizationApply}
               onFeatureExtractionApply={handleFeatureExtractionApply}
               onDimensionalityApplied={handleDimensionalityApplied}
-              onImbalanceApplied={handleImbalanceApplied}
+              //onImbalanceApplied={handleImbalanceApplied}
               onRefreshRandomSample={handleRefreshRandomSample}
+              classImbalance={classImbalance}
+              onCheckClassImbalance={handleCheckClassImbalance}
+              autoCleaningData={autoCleaningData}
+              autoCleaningLoading={autoCleaningLoading}
             />
           </ScrollArea>
         </div>

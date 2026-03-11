@@ -494,7 +494,7 @@ class EnhancedDataPreprocessor:
 
         X = self.df.drop(columns=[target])
         y = self.df[target]
-
+        X = X.select_dtypes(include=["number"])
         if method == "random_over":
             from imblearn.over_sampling import RandomOverSampler
             sampler = RandomOverSampler(random_state=42)

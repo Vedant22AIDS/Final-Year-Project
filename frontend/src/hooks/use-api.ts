@@ -141,6 +141,8 @@ export interface DimensionalityReductionRequest {
 
 export interface DimensionalityReductionResponse {
   technique: DimensionalityTechnique;
+  // technique: string
+  download_id: string
   input_shape: {
     rows: number;
     columns: number;
@@ -168,6 +170,42 @@ export interface AgentChatResponse {
   used_default_prompt: boolean;
   prompt_type: "DEFAULT_PROMPT" | "QUESTION";
   model: string;
+}
+
+export interface AutoCleaningPipelineOutput {
+  duplicates_removed: number;
+  missing_before: number;
+  missing_after: number;
+  outliers_detected: Record<string, number>;
+  outlier_rows_removed: number;
+  data_types_fixed: Record<string, string>;
+}
+
+export interface DatasetQualityReport {
+  quality_score: number;
+  rows_before: number;
+  rows_after: number;
+  missing_before: number;
+  missing_after: number;
+  duplicates_removed: number;
+  outliers_before: Record<string, number>;
+  outliers_after: Record<string, number>;
+  issues_detected: {
+    missing_values: number;
+    duplicate_rows: number;
+    outlier_points: number;
+    incorrect_dtypes: number;
+  };
+  operations_performed: string[];
+}
+
+export interface AutoCleaningResponse {
+  pipeline_output: AutoCleaningPipelineOutput;
+  report: DatasetQualityReport;
+  transformations: Array<Record<string, any>>;
+  ai_explanation: string;
+  cleaned_summary: Record<string, any>;
+  cleaned_sample: Array<Record<string, any>>;
 }
 
 /** Hook return type (partial, inferred by TS from implementation) */
@@ -460,6 +498,11 @@ export function useApi() {
     [apiCall]
   );
 
+  const runAutoCleaning = useCallback(
+    (datasetId: string) => apiCall<AutoCleaningResponse>(`/dataset/${datasetId}/auto-clean`, { method: "POST" }),
+    [apiCall]
+  );
+
   const getCorrelationAnalysis = useCallback(
     (datasetId: string) => apiCall(`/dataset/${datasetId}/correlation`),
     [apiCall]
@@ -701,6 +744,7 @@ export function useApi() {
     removeOutliers,
     applyClassBalancing,
     removeDuplicates,
+    runAutoCleaning,
     getCorrelationAnalysis,
     exportDataset,
     resetDataset,

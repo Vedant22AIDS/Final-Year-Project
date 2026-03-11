@@ -4,8 +4,8 @@ from typing import Any, Dict, Optional
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
-OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.1:8b")
-OLLAMA_URL = os.getenv("OLLAMA_URL", "http://127.0.0.1:11434/api/generate")
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3:latest")
+OLLAMA_URL = os.getenv("OLLAMA_URL", "http://127.0.0.1:11434/api/chat")
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434")
 DEFAULT_AGENT_PROMPT = (
     "Provide a concise initial analysis and 3 to 6 high-impact preprocessing recommendations "
@@ -207,12 +207,15 @@ class AgentService:
 
             def call_local_ollama() -> str:
                 payload = json.dumps(
-                    {
-                        "model": model or OLLAMA_MODEL,
-                        "prompt": full_prompt,
-                        "stream": False,
-                    }
-                ).encode("utf-8")
+                {
+                    "model": model or OLLAMA_MODEL,
+                    "messages": [
+                        {"role": "system", "content": SYSTEM_PROMPT},
+                        {"role": "user", "content": prompt}
+                    ],
+                    "stream": False
+                }
+            ).encode("utf-8")
                 req = Request(
                     OLLAMA_URL,
                     data=payload,
@@ -222,7 +225,8 @@ class AgentService:
                 with urlopen(req, timeout=120) as resp:
                     body = resp.read().decode("utf-8")
                 parsed = json.loads(body)
-                return str(parsed.get("response", "")).strip()
+                # return str(parsed.get("response", "")).strip()
+                return str(parsed.get("message", {}).get("content", "")).strip()
 
             try:
                 text = await loop.run_in_executor(None, call_chat_ollama)

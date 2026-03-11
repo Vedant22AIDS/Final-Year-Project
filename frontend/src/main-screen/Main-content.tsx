@@ -23,8 +23,11 @@ import FeatureExtraction, { type FeatureExtractionConfig } from "../features/tex
 import LabelEncodingPanel from "../features/text-preprocessing/label-encoding.tsx";
 import ImportTextData from "../features/text-preprocessing/import-data.tsx";
 import PcaPanel from "../features/pca-panel.tsx";
-import ImbalancePanel from "../features/imbalance-panel.tsx";
-import type { DimensionalityReductionResponse } from "../hooks/use-api.ts";
+import { AutoCleaningReportPanel } from "../features/auto-cleaning-report-panel.tsx";
+//import ImbalancePanel from "../features/imbalance-panel.tsx";
+import { ClassBalancingPanel } from "../features/class-balancing-panel.tsx";
+import type { BalancingMethod } from "../features/class-balancing-panel.tsx";
+import type { AutoCleaningResponse, DimensionalityReductionResponse } from "../hooks/use-api.ts";
 
 interface VisualizationConfig {
   type: string;
@@ -105,11 +108,13 @@ export interface MainContentProps {
   | "visualization"
   | "summary"
   | "correlation"
-  | "imbalance"
+  // | //"imbalance"
   | "missing-values-advanced"
   | "missing-values-quick"
   | "normalization"
   | "outliers"
+  |  "class-balancing"
+  | "auto-cleaning-report"
   | "database-connectors"
   | "pca"
   | "validation"
@@ -131,17 +136,26 @@ export interface MainContentProps {
   onNormalizationApply: (method: string, columns: string[]) => void
   onEncodingApply: (method: string, columns: string[]) => void
   onOutlierRemovalApply: (method: "iqr" | "zscore", columns: string[], threshold: number) => void
+  onClassBalancingApply: (target: string,method: BalancingMethod) => void
+  onAutoCleaningRun: () => void
   onDatabaseConnectionTest: (payload: any) => Promise<void> | void
   onDatabaseConnectImport: (payload: any) => Promise<void> | void
   onUnstructuredImport: (payload: { text: string; fileName: string; charCount: number; wordCount: number; lineCount: number }) => void
   onBasicCleaningApply: (options: CleaningOption[]) => Promise<{ cleanedText: string } | void> | void
   onTokenizationApply: (config: TokenizationApplyConfig) => Promise<{ token_count: number; tokens: string[] } | void> | void
-  onFilteringApply: (config: FilteringApplyConfig) => Promise<{ filtered_text: string } | void> | void
-  onTextNormalizationApply: (config: TextNormalizationConfig) => Promise<{ normalized_text: string } | void> | void
+  //onFilteringApply: (config: FilteringApplyConfig) => Promise<{ filtered_text: string } | void> | void
+  onFilteringApply: (config: FilteringApplyConfig) => void | Promise<void>
+  //onTextNormalizationApply: (config: TextNormalizationConfig) => Promise<{ normalized_text: string } | void> | void
+  onTextNormalizationApply: (config: TextNormalizationConfig) =>
+  void | Promise<void>
   onFeatureExtractionApply: (config: FeatureExtractionConfig) => Promise<{ result: any } | void> | void
   onDimensionalityApplied: (result: DimensionalityReductionResponse) => void
-  onImbalanceApplied: (result: { technique: string; downloadId: string; outputFile: string }) => void
+  //onImbalanceApplied: (result: { technique: string; downloadId: string; outputFile: string }) => void
   onRefreshRandomSample: () => Promise<void>
+  classImbalance?: any;
+  onCheckClassImbalance: (target: string) => void;
+  autoCleaningData: AutoCleaningResponse | null;
+  autoCleaningLoading: boolean;
 }
 // ...existing code...
 
@@ -166,6 +180,8 @@ export function MainContent({
   onNormalizationApply,
   onEncodingApply,
   onOutlierRemovalApply,
+  onClassBalancingApply,
+  onAutoCleaningRun,
   onDatabaseConnectionTest,
   onDatabaseConnectImport,
   onUnstructuredImport,
@@ -175,8 +191,12 @@ export function MainContent({
   onTextNormalizationApply,
   onFeatureExtractionApply,
   onDimensionalityApplied,
-  onImbalanceApplied,
+  //onImbalanceApplied,
+  classImbalance,
+  onCheckClassImbalance,
   onRefreshRandomSample,
+  autoCleaningData,
+  autoCleaningLoading,
 
 }: MainContentProps) {
   const [searchQuery, setSearchQuery] = useState("");
@@ -527,11 +547,12 @@ export function MainContent({
         </p>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          {[
-            { key: "word", label: "Word Tokenization", desc: "Split text into individual words" },
-            { key: "sentence", label: "Sentence Tokenization", desc: "Split text into sentences" },
-            { key: "ngram", label: "N-gram Generation", desc: "Create sequences of N words" },
-          ].map((item: { key: TokenizationMethod; label: string; desc: string }) => (
+          {
+          ([
+  { key: "word", label: "Word Tokenization", desc: "Split text into individual words" },
+  { key: "sentence", label: "Sentence Tokenization", desc: "Split text into sentences" },
+  { key: "ngram", label: "N-gram Generation", desc: "Create sequences of N words" },
+] as const).map((item: { key: TokenizationMethod; label: string; desc: string }) => (
             <Card
               key={item.key}
               onClick={() => setTokenizationMethod(item.key)}
@@ -730,17 +751,17 @@ if (analysisMode === "text-preprocessing-filtering") {
     );
   }
 
-  if (analysisMode === "imbalance") {
-    return (
-      <ImbalancePanel
-        datasetId={datasetId}
-        fileName={fileName}
-        onTechniqueApplied={onImbalanceApplied}
-        onBack={onBackToOverview}
-        disabled={disabled}
-      />
-    );
-  }
+  // if (analysisMode === "imbalance") {
+  //   return (
+  //     <ImbalancePanel
+  //       datasetId={datasetId}
+  //       fileName={fileName}
+  //       onTechniqueApplied={onImbalanceApplied}
+  //       onBack={onBackToOverview}
+  //       disabled={disabled}
+  //     />
+  //   );
+  // }
 
   if (analysisMode === "outliers") {
     return (
@@ -755,6 +776,43 @@ if (analysisMode === "text-preprocessing-filtering") {
       </div>
     );
   }
+  if (analysisMode === "class-balancing") {
+    return (
+      <div className="flex-1 overflow-y-auto bg-[#000] p-4">
+        <Button
+          variant="outline"
+          onClick={onBackToOverview}
+          className="mb-4 bg-[#1e1e1e] border-[#2a2a2a] hover:bg-[#2a2a2a]"
+        >
+          <ArrowLeft className="h-4 w-4 mr-2" />
+          Back to Overview
+        </Button>
+
+        <ClassBalancingPanel
+          onBack={onBackToOverview}
+          onApply={onClassBalancingApply}
+          onCheckImbalance={onCheckClassImbalance}   // forward handler
+          classImbalance={classImbalance}    
+          //onCheckImbalance={handleCheckImbalance}
+          columns={datasetSummary?.columns || []}
+          
+        />
+      </div>
+    );
+  }
+
+  if (analysisMode === "auto-cleaning-report") {
+    return (
+      <AutoCleaningReportPanel
+        onBack={onBackToOverview}
+        onRun={onAutoCleaningRun}
+        disabled={disabled}
+        loading={autoCleaningLoading}
+        reportData={autoCleaningData}
+      />
+    );
+  }
+
   if (analysisMode === "validation") {
     return (
       <div className="flex-1 overflow-y-auto bg-[#000] p-4">
@@ -783,38 +841,38 @@ if (analysisMode === "text-preprocessing-filtering") {
     );
   }
 
-  // helpers for coloring
-  const getQualityColor = (score: number) => {
-    if (score >= 80) return "text-green-500";
-    if (score >= 60) return "text-yellow-500";
-    return "text-red-500";
-  };
+  // // helpers for coloring
+  // const getQualityColor = (score: number) => {
+  //   if (score >= 80) return "text-green-500";
+  //   if (score >= 60) return "text-yellow-500";
+  //   return "text-red-500";
+  // };
 
-  const getSeverityColor = (severity: string) => {
-    switch (severity) {
-      case "high":
-        return "bg-red-500/20 text-red-400 border-red-500/30";
-      case "medium":
-        return "bg-yellow-500/20 text-yellow-400 border-yellow-500/30";
-      case "low":
-        return "bg-blue-500/20 text-blue-400 border-blue-500/30";
-      default:
-        return "bg-gray-500/20 text-gray-400 border-gray-500/30";
-    }
-  };
+  // const getSeverityColor = (severity: string) => {
+  //   switch (severity) {
+  //     case "high":
+  //       return "bg-red-500/20 text-red-400 border-red-500/30";
+  //     case "medium":
+  //       return "bg-yellow-500/20 text-yellow-400 border-yellow-500/30";
+  //     case "low":
+  //       return "bg-blue-500/20 text-blue-400 border-blue-500/30";
+  //     default:
+  //       return "bg-gray-500/20 text-gray-400 border-gray-500/30";
+  //   }
+  // };
 
-  const getTypeColor = (type: string) => {
-    switch (type) {
-      case "numeric":
-        return "bg-blue-500/20 text-blue-400 border-blue-500/30";
-      case "categorical":
-        return "bg-green-500/20 text-green-400 border-green-500/30";
-      case "date":
-        return "bg-purple-500/20 text-purple-400 border-purple-500/30";
-      default:
-        return "bg-gray-500/20 text-gray-400 border-gray-500/30";
-    }
-  };
+  // const getTypeColor = (type: string) => {
+  //   switch (type) {
+  //     case "numeric":
+  //       return "bg-blue-500/20 text-blue-400 border-blue-500/30";
+  //     case "categorical":
+  //       return "bg-green-500/20 text-green-400 border-green-500/30";
+  //     case "date":
+  //       return "bg-purple-500/20 text-purple-400 border-purple-500/30";
+  //     default:
+  //       return "bg-gray-500/20 text-gray-400 border-gray-500/30";
+  //   }
+  // };
 
   // remove the long overview JSX and replace with:
   return (

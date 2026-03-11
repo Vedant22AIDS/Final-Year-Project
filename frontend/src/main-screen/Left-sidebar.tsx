@@ -17,6 +17,7 @@ interface LeftSidebarProps {
   onDatabaseConnectorsClick?: () => void;
   onNormalizationClick?: () => void;
   onOutliersClick?: () => void;
+  onClassBalancingClick?: () => void;
   onSaveProjectClick?: () => void;
   disabled?: boolean;
 
@@ -152,6 +153,7 @@ export function LeftSidebar({
   onDatabaseConnectorsClick,
   onNormalizationClick,
   onOutliersClick,
+  onClassBalancingClick,
   onSaveProjectClick,
   disabled = false,
 
@@ -198,6 +200,7 @@ export function LeftSidebar({
   onPcaClick = onPcaClick ?? noop;
   onDatabaseConnectorsClick = onDatabaseConnectorsClick ?? noop;
   onOutliersClick = onOutliersClick ?? noop;
+  onClassBalancingClick = onClassBalancingClick ?? noop;
   onSaveProjectClick = onSaveProjectClick ?? noop;
   // ensure handlers exist
   onValidationClick = onValidationClick ?? noop;
@@ -279,6 +282,7 @@ export function LeftSidebar({
     cleanData: "text-yellow-400",
     normalization: "text-purple-400",
     outliers: "text-red-400",
+    classBalancing: "text-cyan-400",
     engineerFeatures: "text-teal-400",
     aiSuggestions: "text-indigo-400",
     saveExport: "text-pink-400",
@@ -576,6 +580,40 @@ export function LeftSidebar({
                 <span className="ml-2 inline-flex items-center gap-2">
                   <span className="h-2 w-2 rounded-full bg-sky-400"></span>
                   Remove outliers
+                </span>
+              )}
+            </button>
+          </div>
+          {/* Class Balancing */}
+          <div className={collapsed ? "flex justify-center mb-1" : ""}>
+            <button
+              className={`w-full flex items-center ${
+                collapsed ? "justify-center" : "justify-start"
+              } px-2 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                disabled || !hasStructuredData
+                  ? "opacity-50 cursor-not-allowed"
+                  : "hover:bg-[#1e1e1e]"
+              }`}
+              onClick={onClassBalancingClick}
+              disabled={disabled || !hasStructuredData}
+              title={collapsed ? "Balance class distribution" : undefined}
+            >
+              <svg
+                className={`h-4 w-4 ${iconColors.classBalancing}`}
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <path d="M4 6h16" />
+                <path d="M4 12h10" />
+                <path d="M4 18h7" />
+              </svg>
+
+              {!collapsed && (
+                <span className="ml-2 inline-flex items-center gap-2">
+                  <span className="h-2 w-2 rounded-full bg-cyan-400"></span>
+                  Balance classes
                 </span>
               )}
             </button>

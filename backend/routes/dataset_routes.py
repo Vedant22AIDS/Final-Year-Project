@@ -3,7 +3,7 @@ from typing import Optional
 from fastapi import APIRouter, File, Form, Query, Request, UploadFile
 
 from controllers.dataset_controller import DatasetController
-
+from schemas.dataset_schemas import BalanceRequest
 router = APIRouter(prefix="/api", tags=["dataset"])
 
 
@@ -101,6 +101,11 @@ async def remove_duplicates(dataset_id: str):
     return await DatasetController.remove_duplicates(dataset_id)
 
 
+@router.post("/dataset/{dataset_id}/auto-clean")
+async def run_auto_cleaning(dataset_id: str):
+    return await DatasetController.run_auto_cleaning(dataset_id)
+
+
 @router.get("/dataset/{dataset_id}/correlation")
 async def get_correlation_analysis(dataset_id: str):
     return await DatasetController.get_correlation_analysis(dataset_id)
@@ -120,7 +125,18 @@ async def reset_dataset(dataset_id: str):
 async def get_processing_history(dataset_id: str):
     return await DatasetController.get_processing_history(dataset_id)
 
+@router.get("/dataset/{dataset_id}/imbalance")
+async def analyze_imbalance(dataset_id: str, target: str):
+    return await DatasetController.analyze_class_imbalance(dataset_id, target)
 
+@router.post("/dataset/{dataset_id}/balance")
+async def balance_dataset(dataset_id: str, request: BalanceRequest):
+    return await DatasetController.apply_class_balancing(
+        dataset_id,
+        request.target,
+        request.method
+    )
+    
 @router.post("/dataset/{dataset_id}/dimensionality-reduction")
 async def apply_dimensionality_reduction(dataset_id: str, request: Request):
     body = await request.json()
