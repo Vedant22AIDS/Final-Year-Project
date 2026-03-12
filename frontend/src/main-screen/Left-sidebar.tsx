@@ -9,6 +9,7 @@ interface LeftSidebarProps {
   handleImputeMissingValues: () => void;
   onQuickImputeClick?: () => void;
   onAdvancedImputationClick?: () => void;
+  onAutoCleaningClick?: () => void;
   onVisualizationClick: () => void;
   onDataSummaryClick: () => void;
   onCorrelationAnalysisClick: () => void;
@@ -145,6 +146,7 @@ export function LeftSidebar({
   handleImputeMissingValues,
   onQuickImputeClick,
   onAdvancedImputationClick,
+  onAutoCleaningClick,
   onVisualizationClick,
   onDataSummaryClick,
   onCorrelationAnalysisClick,
@@ -197,6 +199,7 @@ export function LeftSidebar({
   const noop = () => { };
   onQuickImputeClick = onQuickImputeClick ?? handleImputeMissingValues;
   onAdvancedImputationClick = onAdvancedImputationClick ?? onMissingValuesClick ?? noop;
+  onAutoCleaningClick = onAutoCleaningClick ?? noop;
   onPcaClick = onPcaClick ?? noop;
   onDatabaseConnectorsClick = onDatabaseConnectorsClick ?? noop;
   onOutliersClick = onOutliersClick ?? noop;
@@ -428,6 +431,27 @@ export function LeftSidebar({
               </span>
             </button>
           </CollapsibleSection>
+
+          <div className={collapsed ? "flex justify-center mb-1" : ""}>
+            <button
+              className={`w-full flex items-center ${collapsed ? "justify-center" : "justify-start"} px-2 py-1.5 text-sm font-medium rounded-md transition-colors ${disabled || !hasStructuredData ? "opacity-50 cursor-not-allowed" : "hover:bg-[#1e1e1e]"
+                }`}
+              onClick={onAutoCleaningClick}
+              disabled={disabled || !hasStructuredData}
+              title={collapsed ? "Auto Cleaning Report" : undefined}
+            >
+              <svg className={`h-4 w-4 ${iconColors.cleanData}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M9 12l2 2 4-4" />
+                <path d="M21 12c0 4.97-4.03 9-9 9s-9-4.03-9-9 4.03-9 9-9" />
+              </svg>
+              {!collapsed && (
+                <span className="ml-2 inline-flex items-center gap-2">
+                  <span className="h-2 w-2 rounded-full bg-sky-400"></span>
+                  Auto Cleaning Report
+                </span>
+              )}
+            </button>
+          </div>
 
           {/* Text Preprocessing for Unstructured Data */}
           <CollapsibleSection

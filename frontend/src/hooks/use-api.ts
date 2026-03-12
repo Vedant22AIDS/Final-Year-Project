@@ -181,15 +181,15 @@ export interface AutoCleaningPipelineOutput {
   data_types_fixed: Record<string, string>;
 }
 
-export interface DatasetQualityReport {
+export interface TurnitinStyleReport {
+  report_type: string;
+  generated_at: string;
   quality_score: number;
   rows_before: number;
   rows_after: number;
   missing_before: number;
   missing_after: number;
   duplicates_removed: number;
-  outliers_before: Record<string, number>;
-  outliers_after: Record<string, number>;
   issues_detected: {
     missing_values: number;
     duplicate_rows: number;
@@ -197,14 +197,18 @@ export interface DatasetQualityReport {
     incorrect_dtypes: number;
   };
   operations_performed: string[];
+  before_snapshot: Record<string, any>;
+  after_snapshot: Record<string, any>;
 }
 
 export interface AutoCleaningResponse {
   pipeline_output: AutoCleaningPipelineOutput;
-  report: DatasetQualityReport;
+  turnitin_style_report: TurnitinStyleReport;
+  report_text: string;
   transformations: Array<Record<string, any>>;
   ai_explanation: string;
-  cleaned_summary: Record<string, any>;
+  before_summary: Record<string, any>;
+  after_summary: Record<string, any>;
   cleaned_sample: Array<Record<string, any>>;
 }
 
@@ -499,7 +503,10 @@ export function useApi() {
   );
 
   const runAutoCleaning = useCallback(
-    (datasetId: string) => apiCall<AutoCleaningResponse>(`/dataset/${datasetId}/auto-clean`, { method: "POST" }),
+    (datasetId: string) =>
+      apiCall<AutoCleaningResponse>(`/auto-cleaning/${datasetId}/run`, {
+        method: "POST",
+      }),
     [apiCall]
   );
 

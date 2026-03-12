@@ -183,17 +183,6 @@ class DatasetController:
             return standardize_response(False, error=str(e), status_code=500)
 
     @staticmethod
-    async def run_auto_cleaning(dataset_id: str) -> Any:
-        try:
-            data = await dataset_service.run_auto_cleaning(dataset_id)
-            return standardize_response(True, data, "Automated data cleaning completed successfully")
-        except ValueError as e:
-            return standardize_response(False, error=str(e), status_code=404)
-        except Exception as e:
-            logger.error("Automated data cleaning failed: %s", str(e))
-            return standardize_response(False, error=str(e), status_code=500)
-
-    @staticmethod
     async def get_correlation_analysis(dataset_id: str) -> Any:
         try:
             data = dataset_service.get_correlation_analysis(dataset_id)

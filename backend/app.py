@@ -1,15 +1,19 @@
 import logging
+import os
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from routes.dataset_routes import router as dataset_router
+from routes.auto_cleaning_routes import router as auto_cleaning_router
 from routes.agent_routes import router as agent_router
 from routes.health_routes import router as health_router
 from routes.text_routes import router as text_router
 from utils.response_helper import standardize_response
 
-logging.basicConfig(level=logging.WARNING, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+_log_level_name = os.getenv("APP_LOG_LEVEL", "WARNING").upper()
+_log_level = getattr(logging, _log_level_name, logging.WARNING)
+logging.basicConfig(level=_log_level, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Data Preprocessing API")
@@ -25,6 +29,7 @@ app.add_middleware(
 
 app.include_router(health_router)
 app.include_router(dataset_router)
+app.include_router(auto_cleaning_router)
 app.include_router(text_router)
 app.include_router(agent_router)
 
@@ -46,4 +51,5 @@ if __name__ == "__main__":
     print("Starting Data Preprocessing API Server...")
     print("Server running on http://localhost:5000")
     print("Health check: http://localhost:5000/api/health")
-    uvicorn.run("app:app", host="0.0.0.0", port=5000, log_level="warning")
+    print(f"Log level: {_log_level_name}")
+    uvicorn.run("app:app", host="0.0.0.0", port=5000, log_level=_log_level_name.lower())

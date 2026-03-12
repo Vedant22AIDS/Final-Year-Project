@@ -101,11 +101,6 @@ async def remove_duplicates(dataset_id: str):
     return await DatasetController.remove_duplicates(dataset_id)
 
 
-@router.post("/dataset/{dataset_id}/auto-clean")
-async def run_auto_cleaning(dataset_id: str):
-    return await DatasetController.run_auto_cleaning(dataset_id)
-
-
 @router.get("/dataset/{dataset_id}/correlation")
 async def get_correlation_analysis(dataset_id: str):
     return await DatasetController.get_correlation_analysis(dataset_id)

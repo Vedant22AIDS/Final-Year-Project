@@ -414,9 +414,6 @@ export function DataPreprocessingApp() {
 
       updateDataFromSummary(result.summary)
 
-      setProcessingStatus({ status: "processing", progress: 80, message: "Running automated data cleaning..." })
-      await runAutoCleaningForDataset(result.dataset_id, true)
-
       setProcessingStatus({ status: "completed", progress: 100, message: "File uploaded successfully" })
 
       addLog({
@@ -510,50 +507,6 @@ export function DataPreprocessingApp() {
       return false
     }
     return true
-  }
-
-  const runAutoCleaningForDataset = async (targetDatasetId: string, autoTriggered = false) => {
-    try {
-      setAutoCleaningLoading(true)
-      const result = await api.runAutoCleaning(targetDatasetId)
-
-      setAutoCleaningData(result)
-      setTableData(result.cleaned_sample || [])
-      if (result.cleaned_summary) {
-        updateDataFromSummary(result.cleaned_summary)
-      }
-      setLastActiveTab("")
-      setAnalysisMode("auto-cleaning-report")
-
-      addLog({
-        title: autoTriggered ? "Auto Cleaning Completed" : "Run Auto Cleaning",
-        date: new Date().toLocaleString(),
-        details: `Quality score: ${result.report?.quality_score ?? 0}, duplicates removed: ${result.pipeline_output?.duplicates_removed ?? 0}`,
-        type: "info",
-      })
-
-      if (autoTriggered) {
-        toast.success("Automated cleaning completed")
-      } else {
-        toast.success("Dataset quality report generated")
-      }
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Auto cleaning failed"
-      addLog({
-        title: "Auto Cleaning Error",
-        date: new Date().toLocaleString(),
-        details: errorMessage,
-        type: "error",
-      })
-      toast.error(errorMessage)
-    } finally {
-      setAutoCleaningLoading(false)
-    }
-  }
-
-  const handleAutoCleaningClick = async () => {
-    if (!ensureStructuredData()) return
-    await runAutoCleaningForDataset(datasetId!, false)
   }
 
   const handleProcessingOperation = async (
@@ -825,6 +778,96 @@ export function DataPreprocessingApp() {
       details: "Returned to data overview mode.",
       type: "info",
     })
+  }
+
+  const handleAutoCleaningPanelClick = () => {
+    if (!ensureStructuredData()) return
+    setAnalysisMode("auto-cleaning-report")
+    addLog({
+      title: "Auto Cleaning Panel",
+      date: new Date().toLocaleString(),
+      details: "Opened automated cleaning and report panel.",
+      type: "info",
+    })
+  }
+
+  const handleRunAutoCleaning = async () => {
+    if (!ensureStructuredData()) return
+
+    let progressTimer: ReturnType<typeof setInterval> | null = null
+    try {
+      setAutoCleaningLoading(true)
+      setProcessingStatus({ status: "processing", progress: 40, message: "Running auto cleaning pipeline..." })
+
+      progressTimer = setInterval(() => {
+        setProcessingStatus((prev) => {
+          if (prev.status !== "processing") return prev
+          const nextProgress = Math.min(90, Math.max(prev.progress, 40) + 8)
+          const nextMessage =
+            nextProgress < 60
+              ? "Analyzing dataset structure..."
+              : nextProgress < 80
+                ? "Applying cleaning transformations..."
+                : "Generating quality report and explanation..."
+          return { ...prev, progress: nextProgress, message: nextMessage }
+        })
+      }, 1500)
+
+      const result = await Promise.race([
+        api.runAutoCleaning(datasetId!),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("Auto cleaning timed out. Please try with a smaller dataset or retry.")), 60000),
+        ),
+      ])
+
+      if (progressTimer) {
+        clearInterval(progressTimer)
+        progressTimer = null
+      }
+      setAutoCleaningData(result)
+      setTableData(result.cleaned_sample || [])
+
+      if (result.after_summary) {
+        updateDataFromSummary(result.after_summary)
+      }
+
+      setAnalysisMode("auto-cleaning-report")
+      setLastActiveTab("")
+
+      setProcessingStatus({ status: "completed", progress: 100, message: "Auto cleaning completed" })
+      addLog({
+        title: "Auto Cleaning Completed",
+        date: new Date().toLocaleString(),
+        details: `Quality score: ${result.turnitin_style_report?.quality_score ?? 0}, duplicates removed: ${result.pipeline_output?.duplicates_removed ?? 0}`,
+        type: "info",
+      })
+      toast.success("Auto cleaning and report generation completed")
+      setTimeout(() => {
+        setProcessingStatus({ status: "idle", progress: 0, message: "" })
+      }, 1500)
+    } catch (error) {
+      if (progressTimer) {
+        clearInterval(progressTimer)
+        progressTimer = null
+      }
+      const errorMessage = error instanceof Error ? error.message : "Auto cleaning failed"
+      setProcessingStatus({ status: "error", progress: 0, message: errorMessage })
+      addLog({
+        title: "Auto Cleaning Error",
+        date: new Date().toLocaleString(),
+        details: errorMessage,
+        type: "error",
+      })
+      toast.error(errorMessage)
+      setTimeout(() => {
+        setProcessingStatus({ status: "idle", progress: 0, message: "" })
+      }, 2000)
+    } finally {
+      if (progressTimer) {
+        clearInterval(progressTimer)
+      }
+      setAutoCleaningLoading(false)
+    }
   }
   const handleValidationClick = () => {
     if (!ensureStructuredData()) return
@@ -1773,7 +1816,6 @@ const handleClassBalancingApply = (
       setLastActiveTab("")
 
       updateDataFromSummary(result.summary)
-      await runAutoCleaningForDataset(result.dataset_id, true)
       setAnalysisMode("overview")
 
       setProcessingStatus({ status: "completed", progress: 100, message: "Database data imported successfully" })
@@ -1880,7 +1922,7 @@ const handleClassBalancingApply = (
             //onImbalanceClick={handleImbalanceClick}
             onMissingValuesClick={handleAdvancedImputationClick}
             onQuickImputeClick={handleQuickImputeClick}
-            onAutoCleaningClick={handleAutoCleaningClick}
+            onAutoCleaningClick={handleAutoCleaningPanelClick}
             onOutliersClick={handleOutliersClick}
             onClassBalancingClick={handleClassBalancingClick}
             onExportClick={handleExportFile}
@@ -1926,7 +1968,7 @@ const handleClassBalancingApply = (
               onEncodingApply={handleEncodingApply}
               onOutlierRemovalApply={handleOutlierRemovalApply}
               onClassBalancingApply={handleClassBalancingApply}
-              onAutoCleaningRun={handleAutoCleaningClick}
+              onAutoCleaningRun={handleRunAutoCleaning}
               onDatabaseConnectionTest={handleDatabaseConnectionTest}
               onDatabaseConnectImport={handleDatabaseConnectImport}
               onUnstructuredImport={handleUnstructuredImport}
